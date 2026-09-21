@@ -1,6 +1,5 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 
 url = "https://www.europages.co.uk/en/search?q=packaging"
 
@@ -18,29 +17,49 @@ print("Downloaded:", len(response.text), "characters")
 
 soup = BeautifulSoup(response.text, "html.parser")
 
-print("\nPAGE TITLE:")
-print(soup.title.get_text(" ", strip=True) if soup.title else "N/A")
+# Търсим текстови блокове, които приличат на резултати
+keywords = [
+    "Minimum order",
+    "Contact supplier",
+    "Türkiye",
+    "Turkey",
+    "Greece",
+    "Serbia",
+    "North Macedonia"
+]
 
-print("\nLINKS CONTAINING PRODUCT/COMPANY INFORMATION:")
-print("------------------------------------")
+found = 0
+seen = set()
 
-count = 0
+print("\nPOSSIBLE B2B RESULTS")
+print("====================================")
 
-for link in soup.find_all("a", href=True):
-    text = link.get_text(" ", strip=True)
+for element in soup.find_all(["div", "article", "section", "li"]):
 
-    if len(text) >= 5:
-        href = urljoin(url, link["href"])
+    text = element.get_text(" ", strip=True)
 
-        # Показваме само първите 30 смислени връзки
-        print(f"{count + 1}. {text[:150]}")
-        print(f"   {href}")
+    if len(text) < 80 or len(text) > 1500:
+        continue
 
-        count += 1
+    if not any(keyword.lower() in text.lower() for keyword in keywords):
+        continue
 
-        if count >= 30:
-            break
+    # Премахваме дублиращи се блокове
+    clean_text = " ".join(text.split())
+
+    if clean_text in seen:
+        continue
+
+    seen.add(clean_text)
+
+    print(f"\n--- RESULT {found + 1} ---")
+    print(clean_text[:1000])
+
+    found += 1
+
+    if found >= 10:
+        break
 
 print("\n====================================")
-print("TOTAL LINKS FOUND:", len(soup.find_all("a", href=True)))
+print("RESULTS FOUND:", found)
 print("====================================")

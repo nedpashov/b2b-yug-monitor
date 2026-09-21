@@ -1,5 +1,5 @@
 import requests
-from bs4 import BeautifulSoup
+import re
 
 url = "https://www.europages.co.uk/en/search?q=packaging"
 
@@ -9,57 +9,44 @@ headers = {
 
 response = requests.get(url, headers=headers, timeout=30)
 
+html = response.text
+
 print("====================================")
-print(" B2B YUG MONITOR - EUROPAGES")
+print(" EUROPAGES STRUCTURE TEST")
 print("====================================")
 print("HTTP status:", response.status_code)
-print("Downloaded:", len(response.text), "characters")
+print("Downloaded:", len(html), "characters")
 
-soup = BeautifulSoup(response.text, "html.parser")
-
-# Търсим текстови блокове, които приличат на резултати
-keywords = [
+tests = [
+    "SNI PACKAGING",
+    "Türkiye",
     "Minimum order",
     "Contact supplier",
-    "Türkiye",
-    "Turkey",
-    "Greece",
-    "Serbia",
-    "North Macedonia"
+    "__NEXT_DATA__",
+    "application/ld+json",
+    "__NUXT__",
+    "product",
+    "supplier"
 ]
 
-found = 0
-seen = set()
-
-print("\nPOSSIBLE B2B RESULTS")
+print("\nSEARCHING RAW PAGE")
 print("====================================")
 
-for element in soup.find_all(["div", "article", "section", "li"]):
+for word in tests:
+    count = html.lower().count(word.lower())
+    print(f"{word}: {count}")
 
-    text = element.get_text(" ", strip=True)
+print("\nCONTEXT AROUND 'SNI PACKAGING'")
+print("====================================")
 
-    if len(text) < 80 or len(text) > 1500:
-        continue
+match = re.search("SNI PACKAGING", html, re.IGNORECASE)
 
-    if not any(keyword.lower() in text.lower() for keyword in keywords):
-        continue
+if match:
+    start = max(0, match.start() - 500)
+    end = min(len(html), match.end() + 1500)
 
-    # Премахваме дублиращи се блокове
-    clean_text = " ".join(text.split())
-
-    if clean_text in seen:
-        continue
-
-    seen.add(clean_text)
-
-    print(f"\n--- RESULT {found + 1} ---")
-    print(clean_text[:1000])
-
-    found += 1
-
-    if found >= 10:
-        break
+    print(html[start:end])
+else:
+    print("SNI PACKAGING not found in raw HTML")
 
 print("\n====================================")
-print("RESULTS FOUND:", found)
-print("====================================")

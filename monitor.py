@@ -1,140 +1,184 @@
 import requests
 import json
+import time
 
-url = "https://www.europages.co.uk/search-api-proxy/online.aiSearch.productTextSearch"
+BASE_URL = "https://www.europages.co.uk/search-api-proxy/online.aiSearch.productTextSearch"
 
-params = {
-    "callerIdentity": "preciseIntention",
-    "enCores": "packaging",
-    "multiProTest": "true",
-    "query": "packaging",
-    "keywordsTranslate": "packaging",
-    "pageSize": "30",
-    "page": "2",
-    "llmIntentionType": "preciseIntention",
-    "coreProduct": "packaging",
-    "searchQuery": "packaging",
-    "langident": "bg",
-    "language": "bg",
-    "site": "ep",
-    "ufsSessionId": "a003b2c433e44763",
-    "verified": "false",
-    "topResponder": "false",
-    "isQuickResponder": "false",
-    "source": "web",
+QUERY = "packaging"
+TARGET_COUNTRIES = {
+    "RO": "Румъния",
+    "GR": "Гърция"
+}
+
+HEADERS = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "bg,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+    "referer": "https://www.europages.co.uk/bg/products?q=packaging",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+}
+
+COOKIES = {
+    "region": "BG",
     "currency": "EUR",
-    "terminalType": "pc",
-    "country": "bg",
-    "history": "false",
-    "topLevelDomain": "uk",
-    "needReasoning": "false",
-    "allowTestData": "false"
+    "language": "bg",
 }
 
-headers = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
-    ),
-    "Accept": "application/json, text/plain, */*",
-    "Referer": "https://www.europages.co.uk/bg/products?q=packaging"
-}
 
-print("=" * 70)
-print("EUROPAGES - JSON STRUCTURE TEST")
-print("=" * 70)
+def get_page(page):
+    params = {
+        "callerIdentity": "preciseIntention",
+        "enCores": QUERY,
+        "multiProTest": "true",
+        "query": QUERY,
+        "keywordsTranslate": QUERY,
+        "pageSize": 30,
+        "llmIntentionType": "preciseIntention",
+        "coreProduct": QUERY,
+        "searchQuery": QUERY,
+        "langident": "bg",
+        "language": "bg",
+        "site": "ep",
+        "verified": "false",
+        "topResponder": "false",
+        "isQuickResponder": "false",
+        "source": "web",
+        "currency": "EUR",
+        "terminalType": "pc",
+        "country": "bg",
+        "history": "false",
+        "topLevelDomain": "uk",
+        "needReasoning": "false",
+        "allowTestData": "false",
+        "page": page,
+    }
 
-response = requests.get(
-    url,
-    params=params,
-    headers=headers,
-    timeout=30
-)
+    response = requests.get(
+        BASE_URL,
+        params=params,
+        headers=HEADERS,
+        cookies=COOKIES,
+        timeout=30
+    )
 
-print("HTTP STATUS:", response.status_code)
+    print(f"PAGE {page}: HTTP {response.status_code}")
 
-if response.status_code != 200:
-    print("\nSERVER RESPONSE:")
-    print(response.text[:2000])
-    raise SystemExit(1)
+    response.raise_for_status()
 
-data = response.json()
-
-print("\nJSON RECEIVED")
-print("-" * 70)
-
-if isinstance(data, dict):
-
-    print("\nTOP LEVEL KEYS:")
-
-    for key in data.keys():
-        print("-", key)
-
-elif isinstance(data, list):
-
-    print("JSON TYPE: LIST")
-    print("ITEMS:", len(data))
+    return response.json()
 
 
-print("\nSEARCHING FOR PAGINATION FIELDS...")
-print("-" * 70)
+def main():
 
-keywords = [
-    "page",
-    "total",
-    "count",
-    "offset",
-    "start",
-    "next",
-    "cursor"
-]
+    print("=" * 70)
+    print("B2B YUG MONITOR - EUROPAGES")
+    print("=" * 70)
+    print(f"Search: {QUERY}")
+    print("Countries: Румъния, Гърция")
+    print("=" * 70)
+
+    all_matches = []
+
+    # Първо вземаме страница 1,
+    # за да разберем колко страници има.
+    first_data = get_page(1)
+
+    model = first_data.get("model", {})
+    paging = model.get("paging", {})
+
+    total_pages = paging.get("totalPages", 1)
+    total_offers = paging.get("total", 0)
+
+    print()
+    print(f"TOTAL OFFERS: {total_offers}")
+    print(f"TOTAL PAGES: {total_pages}")
+    print()
+
+    for page in range(1, total_pages + 1):
+
+        print("-" * 70)
+        print(f"SEARCHING PAGE {page}/{total_pages}")
+        print("-" * 70)
+
+        try:
+            if page == 1:
+                data = first_data
+            else:
+                data = get_page(page)
+
+            offers = data.get("model", {}).get("offers", [])
+
+            print(f"OFFERS RECEIVED: {len(offers)}")
+
+            for offer in offers:
+
+                company = offer.get("company", {})
+                country = company.get("countryCode")
+
+                if country in TARGET_COUNTRIES:
+
+                    match = {
+                        "country": TARGET_COUNTRIES[country],
+                        "country_code": country,
+                        "offer": offer
+                    }
+
+                    all_matches.append(match)
+
+                    title = (
+                        offer.get("title")
+                        or offer.get("name")
+                        or "Без заглавие"
+                    )
+
+                    print(
+                        f"FOUND: [{country}] {title}"
+                    )
+
+        except Exception as e:
+            print(f"ERROR ON PAGE {page}: {e}")
+
+        # Малка пауза между заявките
+        time.sleep(1)
+
+    # Записваме резултатите
+    with open(
+        "offers_ro_gr.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            all_matches,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+    # Статистика
+    ro_count = sum(
+        1 for x in all_matches
+        if x["country_code"] == "RO"
+    )
+
+    gr_count = sum(
+        1 for x in all_matches
+        if x["country_code"] == "GR"
+    )
+
+    print()
+    print("=" * 70)
+    print("FINAL RESULT")
+    print("=" * 70)
+
+    print(f"TOTAL OFFERS SCANNED: {total_offers}")
+    print(f"ROMANIA (RO): {ro_count}")
+    print(f"GREECE (GR): {gr_count}")
+    print(f"RO + GR: {len(all_matches)}")
+
+    print()
+    print("Saved: offers_ro_gr.json")
+    print("=" * 70)
 
 
-def search(obj, path="root"):
-
-    if isinstance(obj, dict):
-
-        for key, value in obj.items():
-
-            key_lower = str(key).lower()
-
-            if any(word in key_lower for word in keywords):
-
-                print()
-                print("PATH :", path)
-                print("KEY  :", key)
-                print("VALUE:", str(value)[:500])
-
-            search(value, path + "." + str(key))
-
-    elif isinstance(obj, list):
-
-        for i, item in enumerate(obj):
-
-            search(
-                item,
-                path + f"[{i}]"
-            )
-
-print("\nPAGE INFORMATION")
-print("-" * 70)
-
-paging = data.get("model", {}).get("paging", {})
-
-print("Current page:", paging.get("currentPage"))
-print("Total pages:", paging.get("totalPages"))
-print("Total offers:", paging.get("total"))
-
-offers = data.get("model", {}).get("offers", [])
-
-print("Offers received:", len(offers))
-
-if offers:
-    print("\nFIRST OFFER:")
-    print(offers[0].get("name"))
-search(data)
-
-print("\n" + "=" * 70)
-print("TEST FINISHED")
-print("=" * 70)
+if __name__ == "__main__":
+    main()

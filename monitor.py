@@ -1,23 +1,83 @@
+import requests
 import json
 
-with open("europages_raw.json", "r", encoding="utf-8") as f:
-    data = json.load(f)
+url = "https://www.europages.co.uk/search-api-proxy/online.aiSearch.productTextSearch"
 
-print("=" * 60)
-print("EUROPAGES JSON")
-print("=" * 60)
+params = {
+    "callerIdentity": "preciseIntention",
+    "enCores": "packaging",
+    "multiProTest": "true",
+    "query": "packaging",
+    "keywordsTranslate": "packaging",
+    "pageSize": "30",
+    "llmIntentionType": "preciseIntention",
+    "coreProduct": "packaging",
+    "searchQuery": "packaging",
+    "langident": "bg",
+    "language": "bg",
+    "site": "ep",
+    "ufsSessionId": "a003b2c433e44763",
+    "verified": "false",
+    "topResponder": "false",
+    "isQuickResponder": "false",
+    "source": "web",
+    "currency": "EUR",
+    "terminalType": "pc",
+    "country": "bg",
+    "history": "false",
+    "topLevelDomain": "uk",
+    "needReasoning": "false",
+    "allowTestData": "false"
+}
 
-print("\nОсновни полета:")
+headers = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://www.europages.co.uk/bg/products?q=packaging"
+}
+
+print("=" * 70)
+print("EUROPAGES - JSON STRUCTURE TEST")
+print("=" * 70)
+
+response = requests.get(
+    url,
+    params=params,
+    headers=headers,
+    timeout=30
+)
+
+print("HTTP STATUS:", response.status_code)
+
+if response.status_code != 200:
+    print("\nSERVER RESPONSE:")
+    print(response.text[:2000])
+    raise SystemExit(1)
+
+data = response.json()
+
+print("\nJSON RECEIVED")
+print("-" * 70)
 
 if isinstance(data, dict):
-    for key in data:
+
+    print("\nTOP LEVEL KEYS:")
+
+    for key in data.keys():
         print("-", key)
 
 elif isinstance(data, list):
-    print("JSON е LIST")
-    print("Брой елементи:", len(data))
 
-print("\nТърсим pagination полета...")
+    print("JSON TYPE: LIST")
+    print("ITEMS:", len(data))
+
+
+print("\nSEARCHING FOR PAGINATION FIELDS...")
+print("-" * 70)
 
 keywords = [
     "page",
@@ -29,29 +89,36 @@ keywords = [
     "cursor"
 ]
 
+
 def search(obj, path="root"):
 
     if isinstance(obj, dict):
 
         for key, value in obj.items():
 
-            key_text = str(key).lower()
+            key_lower = str(key).lower()
 
-            if any(word in key_text for word in keywords):
+            if any(word in key_lower for word in keywords):
+
                 print()
-                print("PATH:", path)
-                print("KEY :", key)
-                print("VALUE:", str(value)[:300])
+                print("PATH :", path)
+                print("KEY  :", key)
+                print("VALUE:", str(value)[:500])
 
             search(value, path + "." + str(key))
 
     elif isinstance(obj, list):
 
         for i, item in enumerate(obj):
-            search(item, path + f"[{i}]")
+
+            search(
+                item,
+                path + f"[{i}]"
+            )
+
 
 search(data)
 
-print("\n" + "=" * 60)
-print("ГОТОВО")
-print("=" * 60)
+print("\n" + "=" * 70)
+print("TEST FINISHED")
+print("=" * 70)

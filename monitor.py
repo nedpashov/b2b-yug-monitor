@@ -117,7 +117,22 @@ def search(obj, path="root"):
                 path + f"[{i}]"
             )
 
+print("\nPAGE INFORMATION")
+print("-" * 70)
 
+paging = data.get("model", {}).get("paging", {})
+
+print("Current page:", paging.get("currentPage"))
+print("Total pages:", paging.get("totalPages"))
+print("Total offers:", paging.get("total"))
+
+offers = data.get("model", {}).get("offers", [])
+
+print("Offers received:", len(offers))
+
+if offers:
+    print("\nFIRST OFFER:")
+    print(offers[0].get("name"))
 search(data)
 
 print("\n" + "=" * 70)

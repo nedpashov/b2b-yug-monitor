@@ -10,6 +10,7 @@ params = {
     "query": "packaging",
     "keywordsTranslate": "packaging",
     "pageSize": "30",
+    "page": "2",
     "llmIntentionType": "preciseIntention",
     "coreProduct": "packaging",
     "searchQuery": "packaging",

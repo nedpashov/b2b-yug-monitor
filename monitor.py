@@ -46,6 +46,9 @@ params = {
     "language": "bg",
     "site": "ep",
 
+    # Генерираме нов session ID за всяко изпълнение
+    "ufsSessionId": uuid.uuid4().hex[:16],
+
     "startTime": str(int(time.time() * 1000)),
 
     "verified": "false",
@@ -93,13 +96,17 @@ params = {
     ),
 }
 
+
 print("=" * 60)
 print(" B2B YUG MONITOR - EUROPAGES TEST")
 print("=" * 60)
 print("Search:", KEYWORD)
+print("Session:", params["ufsSessionId"])
 print()
 
+
 try:
+
     response = requests.get(
         BASE_URL,
         params=params,
@@ -111,8 +118,10 @@ try:
     print()
 
     if response.status_code != 200:
+
         print("SERVER RESPONSE:")
         print(response.text[:3000])
+
         raise SystemExit(1)
 
     data = response.json()
@@ -120,11 +129,13 @@ try:
     print("JSON RESPONSE: OK")
     print()
 
+    # Запазваме целия отговор
     with open(
         "europages_raw.json",
         "w",
         encoding="utf-8"
     ) as f:
+
         json.dump(
             data,
             f,
@@ -132,89 +143,158 @@ try:
             indent=2
         )
 
+    print("Saved: europages_raw.json")
+    print()
+
+    # Намираме offers
     offers = []
 
     if isinstance(data, dict):
+
         model = data.get("model", {})
 
         if isinstance(model, dict):
-            offers = model.get("offers", [])
+
+            offers = model.get(
+                "offers",
+                []
+            )
 
     print("OFFERS FOUND:", len(offers))
     print()
 
-    for i, offer in enumerate(offers[:10], 1):
 
-        company = offer.get("company") or {}
-        price = offer.get("price") or {}
-        moq = offer.get("minimumOrderQuantity") or {}
+    # Показваме първите 10 оферти
+
+    for i, offer in enumerate(
+        offers[:10],
+        1
+    ):
+
+        company = (
+            offer.get("company")
+            or {}
+        )
+
+        price = (
+            offer.get("price")
+            or {}
+        )
+
+        moq = (
+            offer.get(
+                "minimumOrderQuantity"
+            )
+            or {}
+        )
+
+
+        # Фирма
 
         company_name = company.get(
             "name",
             "N/A"
         )
 
+
+        # Държава
+
         country = company.get(
             "countryCode",
             "N/A"
         )
+
+
+        # Продукт
 
         product = offer.get(
             "name",
             "N/A"
         )
 
+
         # Цена
+
         if price:
-            price_min = price.get("min")
-            price_max = price.get("max")
+
+            price_min = price.get(
+                "min"
+            )
+
+            price_max = price.get(
+                "max"
+            )
+
             currency = price.get(
                 "currency",
                 ""
             )
+
             kind = price.get(
                 "kind",
                 ""
             )
 
+
             if price_max is not None:
+
                 price_text = (
                     f"{price_min} - "
                     f"{price_max} "
                     f"{currency}"
                 )
+
             elif kind == "from":
+
                 price_text = (
                     f"from {price_min} "
                     f"{currency}"
                 )
+
             else:
+
                 price_text = (
                     f"{price_min} "
                     f"{currency}"
                 )
+
         else:
+
             price_text = "N/A"
 
+
         # MOQ
+
         if moq:
+
             moq_text = (
                 f"{moq.get('value', 'N/A')} "
                 f"{moq.get('unit', '')}"
             )
+
         else:
+
             moq_text = "N/A"
 
-        # URL
-        slug = offer.get("slug", "")
+
+        # Europages URL
+
+        slug = offer.get(
+            "slug",
+            ""
+        )
 
         if slug:
+
             offer_url = (
                 "https://www.europages.co.uk/"
                 + slug
             )
+
         else:
+
             offer_url = "N/A"
+
 
         print("-" * 60)
         print(f"#{i}")
@@ -225,10 +305,12 @@ try:
         print("MOQ:", moq_text)
         print("URL:", offer_url)
 
+
     print()
     print("=" * 60)
     print("TEST FINISHED")
     print("=" * 60)
+
 
 except Exception as e:
 

@@ -2,11 +2,12 @@ import requests
 import json
 import time
 import re
+import csv
 
 
 # ============================================================
 # EUROPAGES - B2B YUG MONITOR
-# DIAGNOSTIC VERSION
+# EXPORT VERSION
 # ============================================================
 
 SEARCH = "packaging"
@@ -17,7 +18,6 @@ TARGET_COUNTRIES = {
 }
 
 BASE_URL = "https://www.europages.co.uk"
-
 API_PATH = "/search-api-proxy/online.aiSearch.productTextSearch"
 
 
@@ -141,6 +141,7 @@ def get_page(session, ufs_session_id, page):
     print(f"PAGE {page}: HTTP {response.status_code}")
 
     if response.status_code != 200:
+
         print(response.text[:1000])
         return None
 
@@ -148,12 +149,13 @@ def get_page(session, ufs_session_id, page):
 
 
 # ============================================================
-# FIND COUNTRY
+# GET COUNTRY
 # ============================================================
 
 def get_country(offer):
 
     try:
+
         return (
             offer
             .get("company", {})
@@ -162,122 +164,287 @@ def get_country(offer):
         )
 
     except Exception:
+
         return ""
 
 
 # ============================================================
-# PRINT OFFER STRUCTURE
+# CLEAN TEXT
 # ============================================================
 
-def print_offer(index, offer, country):
+def clean_text(value):
 
-    print()
-    print("=" * 70)
-    print(
-        f"{TARGET_COUNTRIES[country].upper()} "
-        f"- OFFER {index}"
+    if value is None:
+        return ""
+
+    if isinstance(value, str):
+        return " ".join(value.split())
+
+    return str(value)
+
+
+# ============================================================
+# EXTRACT OFFER
+# ============================================================
+
+def extract_offer(offer):
+
+    company = offer.get("company", {})
+
+    if not isinstance(company, dict):
+        company = {}
+
+    country_code = company.get("countryCode", "")
+
+    country_code = clean_text(country_code).upper()
+
+    country_name = TARGET_COUNTRIES.get(
+        country_code,
+        country_code
     )
-    print("=" * 70)
+
+    product_name = clean_text(
+        offer.get("name", "")
+    )
+
+    description = clean_text(
+        offer.get("description", "")
+    )
+
+    company_name = clean_text(
+        company.get("name", "")
+    )
+
+    company_slug = clean_text(
+        company.get("slug", "")
+    )
+
+    company_ep_slug = clean_text(
+        company.get("epSlug", "")
+    )
+
+    company_uuid = clean_text(
+        company.get("uuid", "")
+    )
+
+    company_id = clean_text(
+        company.get("companyId", "")
+    )
+
+    ep_id = clean_text(
+        company.get("epId", "")
+    )
+
+    distribution_area = clean_text(
+        company.get("distributionArea", "")
+    )
+
+    founding_year = clean_text(
+        company.get("foundingYear", "")
+    )
+
+    email_existing = company.get(
+        "emailExisting",
+        ""
+    )
+
+    is_ep_member = company.get(
+        "is_ep_member",
+        ""
+    )
+
+    is_wlw_member = company.get(
+        "is_wlw_member",
+        ""
+    )
+
+    is_quick_responder = company.get(
+        "isQuickResponder",
+        ""
+    )
+
+    offer_uuid = clean_text(
+        offer.get("uuid", "")
+    )
+
+    auction_id = clean_text(
+        offer.get("auctionId", "")
+    )
+
+    slug_id = clean_text(
+        offer.get("slugId", "")
+    )
+
+    offer_slug = clean_text(
+        offer.get("slug", "")
+    )
+
+    v_category = clean_text(
+        offer.get("vCategory", "")
+    )
+
+    # Europages product URL
+    offer_url = ""
+
+    if offer_slug:
+
+        offer_url = (
+            f"{BASE_URL}/bg/products/"
+            f"{offer_slug}"
+        )
+
+    return {
+
+        "country_code": country_code,
+
+        "country": country_name,
+
+        "company_name": company_name,
+
+        "company_slug": company_slug,
+
+        "company_ep_slug": company_ep_slug,
+
+        "company_id": company_id,
+
+        "company_uuid": company_uuid,
+
+        "ep_id": ep_id,
+
+        "distribution_area": distribution_area,
+
+        "founding_year": founding_year,
+
+        "email_existing": email_existing,
+
+        "is_ep_member": is_ep_member,
+
+        "is_wlw_member": is_wlw_member,
+
+        "is_quick_responder": is_quick_responder,
+
+        "product_name": product_name,
+
+        "description": description,
+
+        "category": v_category,
+
+        "offer_uuid": offer_uuid,
+
+        "auction_id": auction_id,
+
+        "slug_id": slug_id,
+
+        "offer_slug": offer_slug,
+
+        "offer_url": offer_url,
+    }
+
+
+# ============================================================
+# SAVE CSV
+# ============================================================
+
+def save_csv(rows, filename):
+
+    if not rows:
+
+        print("No data to save.")
+
+        return
+
+    fieldnames = list(rows[0].keys())
+
+    with open(
+        filename,
+        "w",
+        newline="",
+        encoding="utf-8-sig"
+    ) as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=fieldnames
+        )
+
+        writer.writeheader()
+
+        writer.writerows(rows)
 
     print()
-    print("TOP LEVEL FIELDS:")
-    print("-" * 70)
+    print("SAVED:", filename)
+    print("ROWS:", len(rows))
 
-    for key, value in offer.items():
 
-        if isinstance(value, (dict, list)):
+# ============================================================
+# UNIQUE COMPANIES
+# ============================================================
 
-            print(
-                f"- {key} "
-                f"[{type(value).__name__}]"
-            )
+def create_unique_companies(rows):
 
-        else:
+    companies = {}
 
-            text = str(value)
+    for row in rows:
 
-            if len(text) > 300:
-                text = text[:300] + "..."
+        key = (
+            row["country_code"],
+            row["company_id"],
+            row["company_name"]
+        )
 
-            print(
-                f"- {key}: {text}"
-            )
+        if key not in companies:
 
-    # --------------------------------------------------------
-    # COMPANY
-    # --------------------------------------------------------
+            companies[key] = {
 
-    company = offer.get("company")
+                "country_code":
+                    row["country_code"],
 
-    if isinstance(company, dict):
+                "country":
+                    row["country"],
 
-        print()
-        print("COMPANY FIELDS:")
-        print("-" * 70)
+                "company_name":
+                    row["company_name"],
 
-        for key, value in company.items():
+                "company_id":
+                    row["company_id"],
 
-            if isinstance(value, (dict, list)):
+                "company_uuid":
+                    row["company_uuid"],
 
-                print(
-                    f"- {key} "
-                    f"[{type(value).__name__}]"
-                )
+                "company_slug":
+                    row["company_slug"],
 
-            else:
+                "company_ep_slug":
+                    row["company_ep_slug"],
 
-                text = str(value)
+                "ep_id":
+                    row["ep_id"],
 
-                if len(text) > 300:
-                    text = text[:300] + "..."
+                "distribution_area":
+                    row["distribution_area"],
 
-                print(
-                    f"- {key}: {text}"
-                )
+                "founding_year":
+                    row["founding_year"],
 
-    # --------------------------------------------------------
-    # POSSIBLE TEXT FIELDS
-    # --------------------------------------------------------
+                "email_existing":
+                    row["email_existing"],
 
-    print()
-    print("POSSIBLE TEXT / DESCRIPTION FIELDS:")
-    print("-" * 70)
+                "is_ep_member":
+                    row["is_ep_member"],
 
-    keywords = [
-        "title",
-        "name",
-        "description",
-        "desc",
-        "product",
-        "category",
-        "url",
-        "link",
-        "price",
-        "company",
-        "address",
-        "city",
-        "country",
-        "website",
-    ]
+                "is_wlw_member":
+                    row["is_wlw_member"],
 
-    for key, value in offer.items():
+                "is_quick_responder":
+                    row["is_quick_responder"],
 
-        key_lower = key.lower()
+                "products_count":
+                    0,
+            }
 
-        if any(word in key_lower for word in keywords):
+        companies[key]["products_count"] += 1
 
-            if isinstance(value, str):
-
-                print(
-                    f"{key}: {value[:500]}"
-                )
-
-            elif isinstance(value, (dict, list)):
-
-                print(
-                    f"{key}: "
-                    f"[{type(value).__name__}]"
-                )
+    return list(companies.values())
 
 
 # ============================================================
@@ -288,11 +455,17 @@ def main():
 
     print("=" * 70)
     print("EUROPAGES - B2B YUG MONITOR")
-    print("DIAGNOSTIC MODE")
+    print("EXPORT VERSION")
     print("=" * 70)
 
     print()
     print("SEARCH:", SEARCH)
+
+    print()
+    print(
+        "TARGET COUNTRIES:",
+        ", ".join(TARGET_COUNTRIES.values())
+    )
 
     session, ufs_session_id = create_session()
 
@@ -300,6 +473,7 @@ def main():
 
         print()
         print("ERROR: ufsSessionId not found.")
+
         return
 
     print()
@@ -320,16 +494,30 @@ def main():
     if not first_data:
 
         print("First page failed.")
+
         return
 
-    model = first_data.get("model", {})
-    paging = model.get("paging", {})
-
-    total_pages = int(
-        paging.get("totalPages", 1)
+    model = first_data.get(
+        "model",
+        {}
     )
 
-    total_offers = paging.get("total", 0)
+    paging = model.get(
+        "paging",
+        {}
+    )
+
+    total_pages = int(
+        paging.get(
+            "totalPages",
+            1
+        )
+    )
+
+    total_offers = paging.get(
+        "total",
+        0
+    )
 
     all_offers = []
 
@@ -337,7 +525,10 @@ def main():
     # ALL PAGES
     # --------------------------------------------------------
 
-    for page in range(1, total_pages + 1):
+    for page in range(
+        1,
+        total_pages + 1
+    ):
 
         if page == 1:
 
@@ -354,6 +545,7 @@ def main():
             )
 
         if not data:
+
             continue
 
         offers = (
@@ -362,7 +554,9 @@ def main():
             .get("offers", [])
         )
 
-        all_offers.extend(offers)
+        all_offers.extend(
+            offers
+        )
 
     # --------------------------------------------------------
     # FILTER
@@ -375,17 +569,87 @@ def main():
 
     for offer in all_offers:
 
-        country = get_country(offer)
+        country = get_country(
+            offer
+        )
 
         if country in target_offers:
 
-            target_offers[country].append(
+            target_offers[
+                country
+            ].append(
                 offer
             )
 
+    # --------------------------------------------------------
+    # EXTRACT
+    # --------------------------------------------------------
+
+    rows = []
+
+    for country in [
+        "RO",
+        "GR"
+    ]:
+
+        for offer in target_offers[country]:
+
+            row = extract_offer(
+                offer
+            )
+
+            rows.append(
+                row
+            )
+
+    # --------------------------------------------------------
+    # UNIQUE COMPANIES
+    # --------------------------------------------------------
+
+    unique_companies = (
+        create_unique_companies(
+            rows
+        )
+    )
+
+    # --------------------------------------------------------
+    # SAVE
+    # --------------------------------------------------------
+
+    save_csv(
+        rows,
+        "offers_ro_gr.csv"
+    )
+
+    save_csv(
+        unique_companies,
+        "companies_ro_gr.csv"
+    )
+
+    # --------------------------------------------------------
+    # SAVE JSON
+    # --------------------------------------------------------
+
+    with open(
+        "offers_ro_gr_clean.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            rows,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+    # --------------------------------------------------------
+    # SUMMARY
+    # --------------------------------------------------------
+
     print()
     print("=" * 70)
-    print("DOWNLOAD COMPLETE")
+    print("RESULT")
     print("=" * 70)
 
     print(
@@ -399,58 +663,38 @@ def main():
     )
 
     print(
-        "ROMANIA:",
+        "ROMANIA OFFERS:",
         len(target_offers["RO"])
     )
 
     print(
-        "GREECE:",
+        "GREECE OFFERS:",
         len(target_offers["GR"])
     )
 
-    # --------------------------------------------------------
-    # PRINT DIAGNOSTICS
-    # --------------------------------------------------------
+    print(
+        "TOTAL RO + GR:",
+        len(rows)
+    )
 
-    counter = 1
-
-    for country in ["RO", "GR"]:
-
-        for offer in target_offers[country]:
-
-            print_offer(
-                counter,
-                offer,
-                country
-            )
-
-            counter += 1
-
-    # --------------------------------------------------------
-    # SAVE FULL RAW DATA
-    # --------------------------------------------------------
-
-    with open(
-        "diagnostic_ro_gr.json",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            target_offers,
-            f,
-            ensure_ascii=False,
-            indent=2
-        )
+    print(
+        "UNIQUE COMPANIES:",
+        len(unique_companies)
+    )
 
     print()
     print("=" * 70)
-    print("DIAGNOSTIC COMPLETE")
+    print("FILES CREATED")
     print("=" * 70)
 
-    print(
-        "Saved: diagnostic_ro_gr.json"
-    )
+    print("offers_ro_gr.csv")
+    print("companies_ro_gr.csv")
+    print("offers_ro_gr_clean.json")
+
+    print()
+    print("=" * 70)
+    print("MONITOR COMPLETE")
+    print("=" * 70)
 
 
 # ============================================================
@@ -459,4 +703,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

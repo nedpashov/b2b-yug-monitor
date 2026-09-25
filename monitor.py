@@ -1,131 +1,232 @@
 import requests
 import json
 import time
+import re
+from urllib.parse import urlencode
+
 
 # ============================================================
 # B2B YUG MONITOR - EUROPAGES
 # ============================================================
 
-BASE_URL = (
-    "https://www.europages.co.uk/"
-    "search-api-proxy/online.aiSearch.productTextSearch"
-)
-
-QUERY = "packaging"
+SEARCH = "packaging"
 
 TARGET_COUNTRIES = {
     "RO": "Румъния",
     "GR": "Гърция",
 }
 
-# Временно използваме session ID от работещата заявка.
-# Ако Europages го отхвърли като изтекъл, ще видим
-# точното съобщение и ще направим автоматично получаване.
-UFS_SESSION_ID = "cc2b6bc58703691d"
+BASE_URL = "https://www.europages.co.uk"
+
+API_PATH = "/search-api-proxy/online.aiSearch.productTextSearch"
 
 
-HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "accept-language": (
-        "bg,en;q=0.9,en-GB;q=0.8,en-US;q=0.7,bg-BG;q=0.6"
-    ),
-    "referer": (
-        "https://www.europages.co.uk/bg/products?q=packaging"
-    ),
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "user-agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
-    ),
-}
+# ============================================================
+# SESSION
+# ============================================================
+
+def create_session():
+    print("=" * 70)
+    print("CREATING EUROPAGES SESSION")
+    print("=" * 70)
+
+    session = requests.Session()
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;"
+            "q=0.9,image/avif,image/webp,*/*;q=0.8"
+        ),
+        "Accept-Language": "bg,en;q=0.9,en-GB;q=0.8",
+    }
+
+    try:
+        response = session.get(
+            f"{BASE_URL}/bg/products?q={SEARCH}",
+            headers=headers,
+            timeout=30,
+        )
+
+        print("Homepage HTTP:", response.status_code)
+
+        # ----------------------------------------------------
+        # Try to find ufsSessionId in cookies
+        # ----------------------------------------------------
+
+        ufs_session_id = session.cookies.get("ufs_session_id")
+
+        if ufs_session_id:
+            print("ufsSessionId obtained from cookie")
+            print("Session:", ufs_session_id[:8] + "...")
+            return session, ufs_session_id
+
+        # ----------------------------------------------------
+        # Try to find it in page source
+        # ----------------------------------------------------
+
+        patterns = [
+            r'"ufsSessionId"\s*:\s*"([^"]+)"',
+            r'"ufs_session_id"\s*:\s*"([^"]+)"',
+            r'ufsSessionId=([a-zA-Z0-9]+)',
+            r'ufs_session_id=([a-zA-Z0-9]+)',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, response.text)
+
+            if match:
+                ufs_session_id = match.group(1)
+
+                print("ufsSessionId found in page")
+                print("Session:", ufs_session_id[:8] + "...")
+
+                return session, ufs_session_id
+
+        print("WARNING: ufsSessionId was not found.")
+
+        return session, None
+
+    except Exception as e:
+        print("ERROR creating session:", e)
+        return session, None
 
 
-def get_page(page=1):
+# ============================================================
+# API REQUEST
+# ============================================================
 
+def get_page(session, ufs_session_id, page):
     params = {
         "callerIdentity": "preciseIntention",
-        "enCores": QUERY,
+        "enCores": SEARCH,
         "multiProTest": "true",
-        "query": QUERY,
-        "keywordsTranslate": QUERY,
+        "query": SEARCH,
+        "keywordsTranslate": SEARCH,
         "pageSize": "30",
-
         "llmIntentionType": "preciseIntention",
-
-        "multiProTest": "true",
-
-        "coreProduct": QUERY,
-        "searchQuery": QUERY,
-
+        "coreProduct": SEARCH,
+        "searchQuery": SEARCH,
         "langident": "bg",
         "language": "bg",
         "site": "ep",
-
-        "ufsSessionId": UFS_SESSION_ID,
-
+        "ufsSessionId": ufs_session_id,
         "verified": "false",
         "topResponder": "false",
         "isQuickResponder": "false",
-
         "source": "web",
-
         "currency": "EUR",
         "terminalType": "pc",
         "country": "bg",
-
         "history": "false",
-
         "topLevelDomain": "uk",
-
         "needReasoning": "false",
         "allowTestData": "false",
-
-        # ВАЖНО:
-        # Тук засега НЕ задаваме page=.
-        # Първо проверяваме, че базовата заявка работи.
+        "page": str(page),
     }
 
-    response = requests.get(
-        BASE_URL,
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "bg,en;q=0.9,en-GB;q=0.8",
+        "Referer": f"{BASE_URL}/bg/products?q={SEARCH}",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
+        ),
+    }
+
+    url = BASE_URL + API_PATH
+
+    response = session.get(
+        url,
         params=params,
-        headers=HEADERS,
+        headers=headers,
         timeout=30,
     )
 
-    print()
-    print("=" * 70)
-    print(f"HTTP STATUS: {response.status_code}")
-    print("=" * 70)
+    print(f"PAGE {page}: HTTP {response.status_code}")
 
     if response.status_code != 200:
-
         print("ERROR RESPONSE:")
-        print(response.text[:3000])
-
-        print()
-        print("REQUEST URL:")
-        print(response.url)
-
+        print(response.text[:2000])
         return None
 
     try:
-        data = response.json()
+        return response.json()
+
     except Exception as e:
-
-        print("JSON ERROR:")
-        print(e)
-
-        print()
-        print("RAW RESPONSE:")
-        print(response.text[:3000])
-
+        print("JSON ERROR:", e)
+        print(response.text[:1000])
         return None
 
-    return data
 
+# ============================================================
+# COUNTRY
+# ============================================================
+
+def get_country(offer):
+    try:
+        return (
+            offer
+            .get("company", {})
+            .get("countryCode", "")
+            .upper()
+        )
+    except Exception:
+        return ""
+
+
+# ============================================================
+# OFFER TITLE
+# ============================================================
+
+def get_title(offer):
+    possible_fields = [
+        "title",
+        "name",
+        "productName",
+        "offerTitle",
+        "label",
+    ]
+
+    for field in possible_fields:
+        value = offer.get(field)
+
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    return "Без заглавие"
+
+
+# ============================================================
+# OFFER URL
+# ============================================================
+
+def get_url(offer):
+    possible_fields = [
+        "url",
+        "link",
+        "offerUrl",
+        "productUrl",
+    ]
+
+    for field in possible_fields:
+        value = offer.get(field)
+
+        if isinstance(value, str) and value.startswith("http"):
+            return value
+
+    return ""
+
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
 
@@ -134,82 +235,183 @@ def main():
     print("=" * 70)
 
     print()
-    print("SEARCH:", QUERY)
-    print("TARGET COUNTRIES: Румъния, Гърция")
-
-    print()
-    print("TESTING EUROPAGES API...")
+    print("SEARCH:", SEARCH)
+    print("TARGET COUNTRIES:", ", ".join(TARGET_COUNTRIES.values()))
     print()
 
-    data = get_page(1)
+    # --------------------------------------------------------
+    # CREATE SESSION
+    # --------------------------------------------------------
 
-    if data is None:
+    session, ufs_session_id = create_session()
 
+    if not ufs_session_id:
         print()
         print("=" * 70)
-        print("REQUEST FAILED")
+        print("FAILED: NO ufsSessionId")
         print("=" * 70)
-
         return
 
-    model = data.get("model", {})
+    print()
+    print("=" * 70)
+    print("TESTING EUROPAGES API")
+    print("=" * 70)
+
+    # --------------------------------------------------------
+    # FIRST PAGE
+    # --------------------------------------------------------
+
+    first_data = get_page(
+        session,
+        ufs_session_id,
+        1
+    )
+
+    if not first_data:
+        print("API request failed.")
+        return
+
+    model = first_data.get("model", {})
 
     paging = model.get("paging", {})
-    offers = model.get("offers", [])
+
+    total_pages = paging.get("totalPages", 1)
+    total_offers = paging.get("total", 0)
+
+    first_offers = model.get("offers", [])
 
     print()
     print("=" * 70)
     print("API CONNECTION SUCCESSFUL")
     print("=" * 70)
 
-    print()
     print("CURRENT PAGE:", paging.get("currentPage"))
-    print("TOTAL PAGES:", paging.get("totalPages"))
-    print("TOTAL OFFERS:", paging.get("total"))
-    print("OFFERS RECEIVED:", len(offers))
+    print("TOTAL PAGES:", total_pages)
+    print("TOTAL OFFERS:", total_offers)
+    print("OFFERS RECEIVED:", len(first_offers))
 
     # --------------------------------------------------------
-    # Проверяваме държавите в получените оферти
+    # COLLECT ALL OFFERS
     # --------------------------------------------------------
 
-    matches = []
+    all_offers = []
 
     print()
     print("=" * 70)
-    print("CHECKING COUNTRIES")
+    print("DOWNLOADING ALL PAGES")
     print("=" * 70)
 
-    for index, offer in enumerate(offers):
+    for page in range(1, int(total_pages) + 1):
 
-        company = offer.get("company", {})
+        if page == 1:
+            data = first_data
+        else:
+            time.sleep(1)
 
-        country_code = company.get("countryCode")
-
-        if country_code in TARGET_COUNTRIES:
-
-            title = (
-                offer.get("title")
-                or offer.get("name")
-                or "Без заглавие"
+            data = get_page(
+                session,
+                ufs_session_id,
+                page
             )
 
-            print()
-            print(
-                f"[{country_code}] "
-                f"{TARGET_COUNTRIES[country_code]}"
-            )
+        if not data:
+            print(f"PAGE {page}: FAILED")
+            continue
 
-            print("TITLE:", title)
+        offers = data.get("model", {}).get("offers", [])
 
-            matches.append({
-                "country": TARGET_COUNTRIES[country_code],
-                "country_code": country_code,
-                "offer": offer,
+        print(
+            f"PAGE {page}/{total_pages} -> "
+            f"{len(offers)} offers"
+        )
+
+        all_offers.extend(offers)
+
+    print()
+    print("=" * 70)
+    print("ALL PAGES DOWNLOADED")
+    print("=" * 70)
+
+    print("TOTAL OFFERS DOWNLOADED:", len(all_offers))
+
+    # --------------------------------------------------------
+    # FILTER COUNTRIES
+    # --------------------------------------------------------
+
+    results = {
+        "RO": [],
+        "GR": [],
+    }
+
+    for offer in all_offers:
+
+        country = get_country(offer)
+
+        if country in results:
+            results[country].append({
+                "title": get_title(offer),
+                "country": country,
+                "url": get_url(offer),
+                "company": offer.get("company", {}),
+                "raw_offer": offer,
             })
 
     # --------------------------------------------------------
-    # Запис
+    # RESULT
     # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("RESULT")
+    print("=" * 70)
+
+    print("ROMANIA:", len(results["RO"]))
+    print("GREECE :", len(results["GR"]))
+    print(
+        "TOTAL RO + GR:",
+        len(results["RO"]) + len(results["GR"])
+    )
+
+    # --------------------------------------------------------
+    # SHOW FOUND OFFERS
+    # --------------------------------------------------------
+
+    print()
+
+    for country_code in ["RO", "GR"]:
+
+        print("-" * 70)
+        print(TARGET_COUNTRIES[country_code])
+        print("-" * 70)
+
+        for index, offer in enumerate(
+            results[country_code],
+            start=1
+        ):
+
+            print(
+                f"{index}. "
+                f"{offer['title']}"
+            )
+
+            if offer["url"]:
+                print(
+                    "   URL:",
+                    offer["url"]
+                )
+
+    # --------------------------------------------------------
+    # SAVE JSON
+    # --------------------------------------------------------
+
+    output = {
+        "search": SEARCH,
+        "target_countries": TARGET_COUNTRIES,
+        "total_pages": total_pages,
+        "total_offers": total_offers,
+        "downloaded_offers": len(all_offers),
+        "results": results,
+    }
 
     with open(
         "offers_ro_gr.json",
@@ -218,45 +420,22 @@ def main():
     ) as f:
 
         json.dump(
-            matches,
+            output,
             f,
             ensure_ascii=False,
-            indent=2,
+            indent=2
         )
 
-    # --------------------------------------------------------
-    # Статистика
-    # --------------------------------------------------------
-
-    ro_count = sum(
-        1
-        for item in matches
-        if item["country_code"] == "RO"
-    )
-
-    gr_count = sum(
-        1
-        for item in matches
-        if item["country_code"] == "GR"
-    )
-
     print()
     print("=" * 70)
-    print("RESULT")
+    print("SAVED: offers_ro_gr.json")
     print("=" * 70)
 
-    print("ROMANIA:", ro_count)
-    print("GREECE:", gr_count)
-    print("TOTAL RO + GR:", len(matches))
 
-    print()
-    print("Saved: offers_ro_gr.json")
-
-    print()
-    print("=" * 70)
-    print("TEST FINISHED")
-    print("=" * 70)
-
+# ============================================================
+# START
+# ============================================================
 
 if __name__ == "__main__":
     main()
+

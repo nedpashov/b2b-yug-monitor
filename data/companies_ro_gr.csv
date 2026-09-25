@@ -1,0 +1,8 @@
+﻿country_code,country,company_name,company_id,company_uuid,company_slug,company_ep_slug,ep_id,distribution_area,founding_year,email_existing,is_ep_member,is_wlw_member,is_quick_responder,products_count
+RO,Румъния,INA PLASTIC SRL,22193228,f0b9c0ab-48fa-3530-a7ca-62e54f3dd2c7,ina-plastic-srl-22193228,INA-PLASTIC-SRL,00000005458526-824265001,europe,,True,0,0,False,1
+RO,Румъния,EXONIA PACKAGING,20741264,dcae4818-9b35-3bd7-90b2-067a17314b34,exonia-packaging-20741264,EXONIA-PACKAGING,00000003989240-257277001,international,2003,True,1,1,False,4
+RO,Румъния,URSPACK,22237580,9898060f-8232-36b1-96f5-c1e69e5418a0,urspack-22237580,URSPACK,00000005505354-001,international,2014,True,0,0,False,3
+RO,Румъния,PROCESS COLOR,20171341,909244f4-f098-3045-8272-433e06252c7b,process-color-20171341,PROCESS-COLOR,00000004689200-488595001,international,1993,True,0,0,False,5
+GR,Гърция,GEORGIOS I. CHATZIIOANNIDIS & SIA O.E.,20142881,b099852a-a476-3688-a0c5-49aa0e4bfd90,georgios-i-chatziioannidis-sia-oe-20142881,GEORGIOS-I-CHATZIIOANNIDIS-SIA-OE,00000005259366-573666001,,,True,0,0,False,1
+GR,Гърция,XENOS PACKAGING SA,21432917,4d6c88e2-d7e8-3bfb-8fbe-0f85c3c1ace6,xenos-packaging-sa-21432917,XENOS-PACKAGING-SA,00000005518776-001,international,1991,True,0,0,False,1
+GR,Гърция,ARPA INCORPORATED COMPANY,22257945,bee801d6-2683-36db-9c29-82f641351afa,arpa-incorporated-company-22257945,ARPA-INCORPORATED-COMPANY,00000005538486-001,international,2004,True,0,0,False,2

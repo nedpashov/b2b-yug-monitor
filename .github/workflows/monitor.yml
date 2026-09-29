@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,19 +26,22 @@ jobs:
       - name: Run B2B monitor
         run: python monitor.py
 
-      - name: Save monitoring results to data folder
+      - name: Show generated files
         run: |
-          mkdir -p data
-          cp offers_ro_gr.csv data/offers_ro_gr.csv
-          cp companies_ro_gr.csv data/companies_ro_gr.csv
-          cp offers_ro_gr_clean.json data/offers_ro_gr_clean.json
+          echo "========================================"
+          echo "GENERATED FILES"
+          echo "========================================"
+          find data -type f | sort
 
       - name: Commit monitoring results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add data/
+
           git diff --cached --quiet || git commit -m "Update B2B monitoring results"
+
           git push
 
       - name: Upload monitoring results as artifact
@@ -45,6 +49,4 @@ jobs:
         with:
           name: B2B-YUG-results
           path: |
-            data/offers_ro_gr.csv
-            data/companies_ro_gr.csv
-            data/offers_ro_gr_clean.json
+            data/**

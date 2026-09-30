@@ -25,15 +25,7 @@ jobs:
 
       - name: Run B2B monitor
         run: python monitor.py
-              - name: Ensure empty result files exist
-        run: |
-          latest_dir=$(find data/history -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)
-
-          if [ -n "$latest_dir" ] && [ ! -f "$latest_dir/new_companies.csv" ]; then
-            printf 'date,country_code,country,company_name,company_id,company_uuid,company_slug,company_ep_slug,ep_id,distribution_area,founding_year,email_existing,is_ep_member,is_wlw_member,is_quick_responder,products_count\n' > "$latest_dir/new_companies.csv"
-            echo "Created empty: $latest_dir/new_companies.csv"
-          fi
-
+              
       - name: Show generated files
         run: |
           echo "========================================"

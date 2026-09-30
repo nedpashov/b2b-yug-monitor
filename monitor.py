@@ -9,7 +9,7 @@ from datetime import datetime
 
 # ============================================================
 # EUROPAGES - B2B YUG MONITOR
-# EXPORT + HISTORY VERSION
+# HISTORY + NEW / REMOVED / CHANGED VERSION
 # ============================================================
 
 SEARCH = "packaging"
@@ -22,19 +22,25 @@ TARGET_COUNTRIES = {
 BASE_URL = "https://www.europages.co.uk"
 API_PATH = "/search-api-proxy/online.aiSearch.productTextSearch"
 
+LATEST_DIR = "data/latest"
+HISTORY_DIR = "data/history"
+
 
 # ============================================================
-# DIRECTORIES
+# DATE
 # ============================================================
 
 TODAY = datetime.now().strftime("%Y-%m-%d")
 
-LATEST_DIR = "data/latest"
-HISTORY_ROOT = "data/history"
-TODAY_HISTORY_DIR = f"{HISTORY_ROOT}/{TODAY}"
 
-os.makedirs(LATEST_DIR, exist_ok=True)
-os.makedirs(TODAY_HISTORY_DIR, exist_ok=True)
+# ============================================================
+# CREATE DIRECTORIES
+# ============================================================
+
+def create_directories():
+
+    os.makedirs(LATEST_DIR, exist_ok=True)
+    os.makedirs(HISTORY_DIR, exist_ok=True)
 
 
 # ============================================================
@@ -165,7 +171,7 @@ def get_page(session, ufs_session_id, page):
 
 
 # ============================================================
-# GET COUNTRY
+# COUNTRY
 # ============================================================
 
 def get_country(offer):
@@ -310,8 +316,6 @@ def extract_offer(offer):
 
     return {
 
-        "date": TODAY,
-
         "country_code": country_code,
 
         "country": country_name,
@@ -362,20 +366,20 @@ def extract_offer(offer):
 # SAVE CSV
 # ============================================================
 
-def save_csv(rows, filename, fieldnames=None):
+def save_csv(rows, filename):
 
-    if fieldnames is None:
+    directory = os.path.dirname(filename)
 
-        if rows:
-            fieldnames = list(rows[0].keys())
-        else:
-            fieldnames = []
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
-    if not fieldnames:
+    if not rows:
 
         print("No data to save:", filename)
 
         return
+
+    fieldnames = list(rows[0].keys())
 
     with open(
         filename,
@@ -391,12 +395,45 @@ def save_csv(rows, filename, fieldnames=None):
 
         writer.writeheader()
 
-        if rows:
-            writer.writerows(rows)
+        writer.writerows(rows)
 
     print()
     print("SAVED:", filename)
     print("ROWS:", len(rows))
+
+
+# ============================================================
+# LOAD CSV
+# ============================================================
+
+def load_csv(filename):
+
+    if not os.path.exists(filename):
+
+        return []
+
+    try:
+
+        with open(
+            filename,
+            "r",
+            newline="",
+            encoding="utf-8-sig"
+        ) as f:
+
+            reader = csv.DictReader(f)
+
+            return list(reader)
+
+    except Exception as e:
+
+        print(
+            "ERROR loading:",
+            filename,
+            e
+        )
+
+        return []
 
 
 # ============================================================
@@ -418,9 +455,6 @@ def create_unique_companies(rows):
         if key not in companies:
 
             companies[key] = {
-
-                "date":
-                    TODAY,
 
                 "country_code":
                     row["country_code"],
@@ -474,346 +508,191 @@ def create_unique_companies(rows):
 
 
 # ============================================================
-# FIND PREVIOUS HISTORY DIRECTORY
+# OFFER ID
 # ============================================================
 
-def find_comparison_directory():
+def get_offer_id(row):
 
-    # --------------------------------------------------------
-    # If today's history already exists, use today's previous
-    # snapshot. This makes repeated runs on the same day safe.
-    # --------------------------------------------------------
+    if row.get("offer_uuid"):
+        return "UUID:" + row["offer_uuid"]
 
-    today_offers = (
-        f"{TODAY_HISTORY_DIR}/offers_ro_gr.csv"
-    )
+    if row.get("auction_id"):
+        return "AUCTION:" + row["auction_id"]
 
-    today_companies = (
-        f"{TODAY_HISTORY_DIR}/companies_ro_gr.csv"
-    )
+    if row.get("slug_id"):
+        return "SLUGID:" + row["slug_id"]
 
-    if os.path.exists(today_offers):
-
-        print()
-        print(
-            "TODAY'S PREVIOUS SNAPSHOT FOUND:",
-            TODAY
-        )
-
-        return TODAY_HISTORY_DIR
-
-    # --------------------------------------------------------
-    # Otherwise find the newest history directory BEFORE today
-    # --------------------------------------------------------
-
-    if not os.path.exists(HISTORY_ROOT):
-
-        return None
-
-    directories = []
-
-    for name in os.listdir(HISTORY_ROOT):
-
-        path = os.path.join(
-            HISTORY_ROOT,
-            name
-        )
-
-        if not os.path.isdir(path):
-            continue
-
-        if name == TODAY:
-            continue
-
-        try:
-
-            datetime.strptime(
-                name,
-                "%Y-%m-%d"
-            )
-
-            directories.append(name)
-
-        except ValueError:
-
-            continue
-
-    if not directories:
-
-        return None
-
-    previous_date = max(directories)
-
-    return os.path.join(
-        HISTORY_ROOT,
-        previous_date
-    )
-
-
-# ============================================================
-# LOAD CSV
-# ============================================================
-
-def load_csv(filename):
-
-    if not os.path.exists(filename):
-
-        return []
-
-    rows = []
-
-    try:
-
-        with open(
-            filename,
-            "r",
-            encoding="utf-8-sig"
-        ) as f:
-
-            reader = csv.DictReader(f)
-
-            for row in reader:
-                rows.append(row)
-
-    except Exception as e:
-
-        print(
-            "ERROR READING:",
-            filename,
-            e
-        )
-
-        return []
-
-    return rows
-
-
-# ============================================================
-# LOAD COMPARISON DATA
-# ============================================================
-
-def load_comparison_data():
-
-    comparison_dir = (
-        find_comparison_directory()
-    )
-
-    if not comparison_dir:
-
-        print()
-        print("NO PREVIOUS HISTORY FOUND")
-
-        return [], []
-
-    offers_file = (
-        f"{comparison_dir}/offers_ro_gr.csv"
-    )
-
-    companies_file = (
-        f"{comparison_dir}/companies_ro_gr.csv"
-    )
-
-    previous_offers = load_csv(
-        offers_file
-    )
-
-    previous_companies = load_csv(
-        companies_file
-    )
-
-    print()
-    print(
-        "COMPARISON SOURCE:",
-        comparison_dir
-    )
-
-    print(
-        "PREVIOUS OFFERS:",
-        len(previous_offers)
-    )
-
-    print(
-        "PREVIOUS COMPANIES:",
-        len(previous_companies)
-    )
+    if row.get("offer_slug"):
+        return "SLUG:" + row["offer_slug"]
 
     return (
-        previous_offers,
-        previous_companies
+        "FALLBACK:"
+        + row.get("country_code", "")
+        + "|"
+        + row.get("company_id", "")
+        + "|"
+        + row.get("product_name", "")
     )
 
 
 # ============================================================
-# OFFER KEY
+# COMPANY ID
 # ============================================================
 
-def get_offer_key(row):
+def get_company_id(row):
 
-    offer_uuid = row.get(
-        "offer_uuid",
-        ""
-    )
+    if row.get("company_id"):
+        return "COMPANY:" + row["company_id"]
 
-    if offer_uuid:
+    if row.get("company_uuid"):
+        return "UUID:" + row["company_uuid"]
 
-        return (
-            row.get("country_code", ""),
-            offer_uuid
-        )
+    if row.get("ep_id"):
+        return "EP:" + row["ep_id"]
 
     return (
-        row.get("country_code", ""),
-        row.get("company_id", ""),
-        row.get("product_name", ""),
-        row.get("offer_slug", "")
+        "FALLBACK:"
+        + row.get("country_code", "")
+        + "|"
+        + row.get("company_name", "")
     )
 
 
 # ============================================================
-# COMPANY KEY
+# NORMALIZED ROW
 # ============================================================
 
-def get_company_key(row):
+def normalized_row(row):
 
-    company_id = row.get(
-        "company_id",
-        ""
-    )
-
-    if company_id:
-
-        return (
-            row.get("country_code", ""),
-            company_id
-        )
-
-    return (
-        row.get("country_code", ""),
-        row.get("company_name", "")
-    )
+    return {
+        key: clean_text(value)
+        for key, value in row.items()
+    }
 
 
 # ============================================================
-# FIND NEW OFFERS
+# COMPARE RECORDS
 # ============================================================
 
-def find_new_offers(
-    current_rows,
-    previous_rows
+def compare_records(
+    previous,
+    current,
+    id_function
 ):
 
-    previous_keys = {
-        get_offer_key(row)
-        for row in previous_rows
-    }
+    previous_map = {}
+
+    current_map = {}
+
+    for row in previous:
+
+        previous_map[
+            id_function(row)
+        ] = normalized_row(row)
+
+    for row in current:
+
+        current_map[
+            id_function(row)
+        ] = normalized_row(row)
+
+    previous_ids = set(previous_map.keys())
+
+    current_ids = set(current_map.keys())
+
+    new_ids = current_ids - previous_ids
+
+    removed_ids = previous_ids - current_ids
+
+    common_ids = current_ids & previous_ids
 
     new_rows = []
 
-    for row in current_rows:
+    removed_rows = []
 
-        key = get_offer_key(row)
+    changed_rows = []
 
-        if key not in previous_keys:
+    for record_id in new_ids:
 
-            new_rows.append(row)
-
-    return new_rows
-
-
-# ============================================================
-# FIND NEW COMPANIES
-# ============================================================
-
-def find_new_companies(
-    current_companies,
-    previous_companies
-):
-
-    previous_keys = {
-        get_company_key(row)
-        for row in previous_companies
-    }
-
-    new_companies = []
-
-    for row in current_companies:
-
-        key = get_company_key(row)
-
-        if key not in previous_keys:
-
-            new_companies.append(row)
-
-    return new_companies
-
-
-# ============================================================
-# SAVE SUMMARY
-# ============================================================
-
-def save_summary(
-    total_offers,
-    downloaded,
-    ro_count,
-    gr_count,
-    rows,
-    unique_companies,
-    new_offers,
-    new_companies
-):
-
-    summary = {
-
-        "date":
-            TODAY,
-
-        "search":
-            SEARCH,
-
-        "total_offers_europages":
-            total_offers,
-
-        "downloaded":
-            downloaded,
-
-        "romania_offers":
-            ro_count,
-
-        "greece_offers":
-            gr_count,
-
-        "total_ro_gr":
-            len(rows),
-
-        "unique_companies":
-            len(unique_companies),
-
-        "new_offers":
-            len(new_offers),
-
-        "new_companies":
-            len(new_companies),
-    }
-
-    filename = (
-        f"{TODAY_HISTORY_DIR}/summary.json"
-    )
-
-    with open(
-        filename,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            summary,
-            f,
-            ensure_ascii=False,
-            indent=2
+        new_rows.append(
+            current_map[record_id]
         )
 
-    print()
-    print("SAVED:", filename)
+    for record_id in removed_ids:
+
+        removed_rows.append(
+            previous_map[record_id]
+        )
+
+    for record_id in common_ids:
+
+        old_row = previous_map[record_id]
+
+        new_row = current_map[record_id]
+
+        if old_row != new_row:
+
+            changed_row = dict(new_row)
+
+            changed_row["change_id"] = record_id
+
+            changed_row["previous_data"] = json.dumps(
+                old_row,
+                ensure_ascii=False
+            )
+
+            changed_rows.append(
+                changed_row
+            )
+
+    return (
+        new_rows,
+        removed_rows,
+        changed_rows
+    )
+
+
+# ============================================================
+# FIND PREVIOUS SNAPSHOT
+# ============================================================
+
+def find_previous_snapshot():
+
+    if not os.path.exists(HISTORY_DIR):
+
+        return None
+
+    dates = []
+
+    for name in os.listdir(HISTORY_DIR):
+
+        path = os.path.join(
+            HISTORY_DIR,
+            name
+        )
+
+        if (
+            os.path.isdir(path)
+            and re.match(
+                r"^\d{4}-\d{2}-\d{2}$",
+                name
+            )
+        ):
+
+            dates.append(name)
+
+    dates = sorted(dates)
+
+    previous_dates = [
+        d for d in dates
+        if d < TODAY
+    ]
+
+    if not previous_dates:
+
+        return None
+
+    return previous_dates[-1]
 
 
 # ============================================================
@@ -822,9 +701,11 @@ def save_summary(
 
 def main():
 
+    create_directories()
+
     print("=" * 70)
     print("EUROPAGES - B2B YUG MONITOR")
-    print("EXPORT + HISTORY VERSION")
+    print("HISTORY + NEW / REMOVED / CHANGED VERSION")
     print("=" * 70)
 
     print()
@@ -838,13 +719,64 @@ def main():
     )
 
     # --------------------------------------------------------
-    # LOAD PREVIOUS HISTORY
+    # FIND PREVIOUS SNAPSHOT
     # --------------------------------------------------------
 
-    (
-        previous_offers,
-        previous_companies
-    ) = load_comparison_data()
+    previous_date = find_previous_snapshot()
+
+    previous_offers = []
+    previous_companies = []
+
+    if previous_date:
+
+        previous_dir = os.path.join(
+            HISTORY_DIR,
+            previous_date
+        )
+
+        previous_offers_file = os.path.join(
+            previous_dir,
+            "offers_ro_gr.csv"
+        )
+
+        previous_companies_file = os.path.join(
+            previous_dir,
+            "companies_ro_gr.csv"
+        )
+
+        previous_offers = load_csv(
+            previous_offers_file
+        )
+
+        previous_companies = load_csv(
+            previous_companies_file
+        )
+
+        print()
+        print(
+            "PREVIOUS SNAPSHOT FOUND:",
+            previous_date
+        )
+
+        print(
+            "COMPARISON SOURCE:",
+            previous_dir
+        )
+
+        print(
+            "PREVIOUS OFFERS:",
+            len(previous_offers)
+        )
+
+        print(
+            "PREVIOUS COMPANIES:",
+            len(previous_companies)
+        )
+
+    else:
+
+        print()
+        print("NO PREVIOUS SNAPSHOT FOUND")
 
     # --------------------------------------------------------
     # CREATE SESSION
@@ -855,9 +787,7 @@ def main():
     if not ufs_session_id:
 
         print()
-        print(
-            "ERROR: ufsSessionId not found."
-        )
+        print("ERROR: ufsSessionId not found.")
 
         return
 
@@ -878,9 +808,7 @@ def main():
 
     if not first_data:
 
-        print(
-            "First page failed."
-        )
+        print("First page failed.")
 
         return
 
@@ -932,6 +860,7 @@ def main():
             )
 
         if not data:
+
             continue
 
         offers = (
@@ -945,7 +874,7 @@ def main():
         )
 
     # --------------------------------------------------------
-    # FILTER COUNTRIES
+    # FILTER
     # --------------------------------------------------------
 
     target_offers = {
@@ -980,12 +909,8 @@ def main():
 
         for offer in target_offers[country]:
 
-            row = extract_offer(
-                offer
-            )
-
             rows.append(
-                row
+                extract_offer(offer)
             )
 
     # --------------------------------------------------------
@@ -999,71 +924,46 @@ def main():
     )
 
     # --------------------------------------------------------
-    # FIND NEW OFFERS
+    # CURRENT HISTORY DIRECTORY
     # --------------------------------------------------------
 
-    new_offers = find_new_offers(
+    today_dir = os.path.join(
+        HISTORY_DIR,
+        TODAY
+    )
+
+    os.makedirs(
+        today_dir,
+        exist_ok=True
+    )
+
+    # --------------------------------------------------------
+    # COMPARE OFFERS
+    # --------------------------------------------------------
+
+    (
+        new_offers,
+        removed_offers,
+        changed_offers
+    ) = compare_records(
+        previous_offers,
         rows,
-        previous_offers
+        get_offer_id
     )
 
     # --------------------------------------------------------
-    # FIND NEW COMPANIES
+    # COMPARE COMPANIES
     # --------------------------------------------------------
 
-    new_companies = find_new_companies(
+    (
+        new_companies,
+        removed_companies,
+        changed_companies
+    ) = compare_records(
+        previous_companies,
         unique_companies,
-        previous_companies
+        get_company_id
     )
-
-    # --------------------------------------------------------
-    # FIELD NAMES
-    # --------------------------------------------------------
-
-    offer_fields = [
-        "date",
-        "country_code",
-        "country",
-        "company_name",
-        "company_slug",
-        "company_ep_slug",
-        "company_id",
-        "company_uuid",
-        "ep_id",
-        "distribution_area",
-        "founding_year",
-        "email_existing",
-        "is_ep_member",
-        "is_wlw_member",
-        "is_quick_responder",
-        "product_name",
-        "description",
-        "category",
-        "offer_uuid",
-        "auction_id",
-        "slug_id",
-        "offer_slug",
-        "offer_url",
-    ]
-
-    company_fields = [
-        "date",
-        "country_code",
-        "country",
-        "company_name",
-        "company_id",
-        "company_uuid",
-        "company_slug",
-        "company_ep_slug",
-        "ep_id",
-        "distribution_area",
-        "founding_year",
-        "email_existing",
-        "is_ep_member",
-        "is_wlw_member",
-        "is_quick_responder",
-        "products_count",
-    ]
 
     # --------------------------------------------------------
     # SAVE LATEST
@@ -1071,99 +971,174 @@ def main():
 
     save_csv(
         rows,
-        f"{LATEST_DIR}/offers_ro_gr.csv",
-        offer_fields
+        os.path.join(
+            LATEST_DIR,
+            "offers_ro_gr.csv"
+        )
     )
 
     save_csv(
         unique_companies,
-        f"{LATEST_DIR}/companies_ro_gr.csv",
-        company_fields
+        os.path.join(
+            LATEST_DIR,
+            "companies_ro_gr.csv"
+        )
     )
 
     # --------------------------------------------------------
-    # SAVE TODAY HISTORY
+    # SAVE TODAY SNAPSHOT
     # --------------------------------------------------------
 
     save_csv(
         rows,
-        f"{TODAY_HISTORY_DIR}/offers_ro_gr.csv",
-        offer_fields
+        os.path.join(
+            today_dir,
+            "offers_ro_gr.csv"
+        )
     )
 
     save_csv(
         unique_companies,
-        f"{TODAY_HISTORY_DIR}/companies_ro_gr.csv",
-        company_fields
+        os.path.join(
+            today_dir,
+            "companies_ro_gr.csv"
+        )
     )
 
     # --------------------------------------------------------
-    # SAVE NEW OFFERS
+    # SAVE CHANGES
     # --------------------------------------------------------
 
     save_csv(
         new_offers,
-        f"{TODAY_HISTORY_DIR}/new_offers.csv",
-        offer_fields
+        os.path.join(
+            today_dir,
+            "new_offers.csv"
+        )
     )
 
-    # --------------------------------------------------------
-    # SAVE NEW COMPANIES
-    # --------------------------------------------------------
+    save_csv(
+        removed_offers,
+        os.path.join(
+            today_dir,
+            "removed_offers.csv"
+        )
+    )
+
+    save_csv(
+        changed_offers,
+        os.path.join(
+            today_dir,
+            "changed_offers.csv"
+        )
+    )
 
     save_csv(
         new_companies,
-        f"{TODAY_HISTORY_DIR}/new_companies.csv",
-        company_fields
+        os.path.join(
+            today_dir,
+            "new_companies.csv"
+        )
     )
 
-    # --------------------------------------------------------
-    # SAVE CLEAN JSON
-    # --------------------------------------------------------
-
-    with open(
-        f"{LATEST_DIR}/offers_ro_gr_clean.json",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            rows,
-            f,
-            ensure_ascii=False,
-            indent=2
+    save_csv(
+        removed_companies,
+        os.path.join(
+            today_dir,
+            "removed_companies.csv"
         )
+    )
 
-    with open(
-        f"{TODAY_HISTORY_DIR}/offers_ro_gr_clean.json",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            rows,
-            f,
-            ensure_ascii=False,
-            indent=2
+    save_csv(
+        changed_companies,
+        os.path.join(
+            today_dir,
+            "changed_companies.csv"
         )
-
-    # --------------------------------------------------------
-    # SAVE SUMMARY
-    # --------------------------------------------------------
-
-    save_summary(
-        total_offers,
-        len(all_offers),
-        len(target_offers["RO"]),
-        len(target_offers["GR"]),
-        rows,
-        unique_companies,
-        new_offers,
-        new_companies
     )
 
     # --------------------------------------------------------
     # SUMMARY
+    # --------------------------------------------------------
+
+    summary = {
+
+        "date": TODAY,
+
+        "search": SEARCH,
+
+        "total_europages_offers":
+            total_offers,
+
+        "downloaded_offers":
+            len(all_offers),
+
+        "romania_offers":
+            len(target_offers["RO"]),
+
+        "greece_offers":
+            len(target_offers["GR"]),
+
+        "total_target_offers":
+            len(rows),
+
+        "unique_companies":
+            len(unique_companies),
+
+        "comparison_date":
+            previous_date,
+
+        "previous_offers":
+            len(previous_offers),
+
+        "previous_companies":
+            len(previous_companies),
+
+        "new_offers":
+            len(new_offers),
+
+        "removed_offers":
+            len(removed_offers),
+
+        "changed_offers":
+            len(changed_offers),
+
+        "new_companies":
+            len(new_companies),
+
+        "removed_companies":
+            len(removed_companies),
+
+        "changed_companies":
+            len(changed_companies),
+    }
+
+    summary_file = os.path.join(
+        today_dir,
+        "summary.json"
+    )
+
+    with open(
+        summary_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            summary,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+    print()
+    print(
+        "SAVED:",
+        summary_file
+    )
+
+    # --------------------------------------------------------
+    # RESULT
     # --------------------------------------------------------
 
     print()
@@ -1209,41 +1184,30 @@ def main():
     )
 
     print(
+        "REMOVED OFFERS:",
+        len(removed_offers)
+    )
+
+    print(
+        "CHANGED OFFERS:",
+        len(changed_offers)
+    )
+
+    print()
+
+    print(
         "NEW COMPANIES:",
         len(new_companies)
     )
 
-    print()
-    print("=" * 70)
-    print("FILES CREATED")
-    print("=" * 70)
-
     print(
-        f"{LATEST_DIR}/offers_ro_gr.csv"
+        "REMOVED COMPANIES:",
+        len(removed_companies)
     )
 
     print(
-        f"{LATEST_DIR}/companies_ro_gr.csv"
-    )
-
-    print(
-        f"{TODAY_HISTORY_DIR}/offers_ro_gr.csv"
-    )
-
-    print(
-        f"{TODAY_HISTORY_DIR}/companies_ro_gr.csv"
-    )
-
-    print(
-        f"{TODAY_HISTORY_DIR}/new_offers.csv"
-    )
-
-    print(
-        f"{TODAY_HISTORY_DIR}/new_companies.csv"
-    )
-
-    print(
-        f"{TODAY_HISTORY_DIR}/summary.json"
+        "CHANGED COMPANIES:",
+        len(changed_companies)
     )
 
     print()

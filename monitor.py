@@ -4,7 +4,7 @@ import time
 import re
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # ============================================================
@@ -20,21 +20,18 @@ TARGET_COUNTRIES = {
 }
 
 BASE_URL = "https://www.europages.co.uk"
+
 API_PATH = "/search-api-proxy/online.aiSearch.productTextSearch"
-
-LATEST_DIR = "data/latest"
-HISTORY_DIR = "data/history"
-
-
-# ============================================================
-# DATE
-# ============================================================
 
 TODAY = datetime.now().strftime("%Y-%m-%d")
 
+DATA_DIR = "data"
+LATEST_DIR = os.path.join(DATA_DIR, "latest")
+HISTORY_DIR = os.path.join(DATA_DIR, "history", TODAY)
+
 
 # ============================================================
-# CREATE DIRECTORIES
+# DIRECTORIES
 # ============================================================
 
 def create_directories():
@@ -165,9 +162,18 @@ def get_page(session, ufs_session_id, page):
     if response.status_code != 200:
 
         print(response.text[:1000])
+
         return None
 
-    return response.json()
+    try:
+
+        return response.json()
+
+    except Exception as e:
+
+        print("JSON ERROR:", e)
+
+        return None
 
 
 # ============================================================
@@ -197,9 +203,11 @@ def get_country(offer):
 def clean_text(value):
 
     if value is None:
+
         return ""
 
     if isinstance(value, str):
+
         return " ".join(value.split())
 
     return str(value)
@@ -214,6 +222,7 @@ def extract_offer(offer):
     company = offer.get("company", {})
 
     if not isinstance(company, dict):
+
         company = {}
 
     country_code = clean_text(
@@ -265,24 +274,20 @@ def extract_offer(offer):
         company.get("foundingYear", "")
     )
 
-    email_existing = company.get(
-        "emailExisting",
-        ""
+    email_existing = clean_text(
+        company.get("emailExisting", "")
     )
 
-    is_ep_member = company.get(
-        "is_ep_member",
-        ""
+    is_ep_member = clean_text(
+        company.get("is_ep_member", "")
     )
 
-    is_wlw_member = company.get(
-        "is_wlw_member",
-        ""
+    is_wlw_member = clean_text(
+        company.get("is_wlw_member", "")
     )
 
-    is_quick_responder = company.get(
-        "isQuickResponder",
-        ""
+    is_quick_responder = clean_text(
+        company.get("isQuickResponder", "")
     )
 
     offer_uuid = clean_text(
@@ -363,23 +368,43 @@ def extract_offer(offer):
 
 
 # ============================================================
-# SAVE CSV
+# CSV SAVE
 # ============================================================
 
-def save_csv(rows, filename):
+def save_csv(rows, filename, fieldnames=None):
 
-    directory = os.path.dirname(filename)
+    if fieldnames is None:
 
-    if directory:
-        os.makedirs(directory, exist_ok=True)
+        if rows:
 
-    if not rows:
+            fieldnames = list(rows[0].keys())
 
-        print("No data to save:", filename)
+        else:
 
-        return
-
-    fieldnames = list(rows[0].keys())
+            fieldnames = [
+                "country_code",
+                "country",
+                "company_name",
+                "company_slug",
+                "company_ep_slug",
+                "company_id",
+                "company_uuid",
+                "ep_id",
+                "distribution_area",
+                "founding_year",
+                "email_existing",
+                "is_ep_member",
+                "is_wlw_member",
+                "is_quick_responder",
+                "product_name",
+                "description",
+                "category",
+                "offer_uuid",
+                "auction_id",
+                "slug_id",
+                "offer_slug",
+                "offer_url",
+            ]
 
     with open(
         filename,
@@ -390,12 +415,15 @@ def save_csv(rows, filename):
 
         writer = csv.DictWriter(
             f,
-            fieldnames=fieldnames
+            fieldnames=fieldnames,
+            extrasaction="ignore"
         )
 
         writer.writeheader()
 
-        writer.writerows(rows)
+        if rows:
+
+            writer.writerows(rows)
 
     print()
     print("SAVED:", filename)
@@ -403,7 +431,7 @@ def save_csv(rows, filename):
 
 
 # ============================================================
-# LOAD CSV
+# CSV LOAD
 # ============================================================
 
 def load_csv(filename):
@@ -421,23 +449,142 @@ def load_csv(filename):
             encoding="utf-8-sig"
         ) as f:
 
-            reader = csv.DictReader(f)
-
-            return list(reader)
+            return list(
+                csv.DictReader(f)
+            )
 
     except Exception as e:
 
         print(
-            "ERROR loading:",
-            filename,
-            e
+            f"ERROR loading {filename}: {e}"
         )
 
         return []
 
 
 # ============================================================
-# UNIQUE COMPANIES
+# FIND PREVIOUS SNAPSHOT
+# ============================================================
+
+def find_previous_snapshot():
+
+    history_root = os.path.join(
+        DATA_DIR,
+        "history"
+    )
+
+    if not os.path.exists(history_root):
+
+        return None
+
+    dates = []
+
+    for name in os.listdir(history_root):
+
+        path = os.path.join(
+            history_root,
+            name
+        )
+
+        if os.path.isdir(path):
+
+            try:
+
+                datetime.strptime(
+                    name,
+                    "%Y-%m-%d"
+                )
+
+                if name < TODAY:
+
+                    dates.append(name)
+
+            except ValueError:
+
+                pass
+
+    if not dates:
+
+        return None
+
+    return sorted(
+        dates,
+        reverse=True
+    )[0]
+
+
+# ============================================================
+# OFFER KEY
+# ============================================================
+
+def offer_key(row):
+
+    uuid = clean_text(
+        row.get("offer_uuid", "")
+    )
+
+    if uuid:
+
+        return "UUID:" + uuid
+
+    slug = clean_text(
+        row.get("offer_slug", "")
+    )
+
+    if slug:
+
+        return "SLUG:" + slug
+
+    auction_id = clean_text(
+        row.get("auction_id", "")
+    )
+
+    if auction_id:
+
+        return "AUCTION:" + auction_id
+
+    return "|".join([
+        clean_text(row.get("country_code", "")),
+        clean_text(row.get("company_name", "")),
+        clean_text(row.get("product_name", "")),
+    ])
+
+
+# ============================================================
+# COMPANY KEY
+# ============================================================
+
+def company_key(row):
+
+    company_id = clean_text(
+        row.get("company_id", "")
+    )
+
+    if company_id:
+
+        return (
+            "ID:"
+            + clean_text(row.get("country_code", ""))
+            + ":"
+            + company_id
+        )
+
+    company_uuid = clean_text(
+        row.get("company_uuid", "")
+    )
+
+    if company_uuid:
+
+        return "UUID:" + company_uuid
+
+    return "|".join([
+        clean_text(row.get("country_code", "")),
+        clean_text(row.get("company_name", "")),
+    ])
+
+
+# ============================================================
+# CREATE UNIQUE COMPANIES
 # ============================================================
 
 def create_unique_companies(rows):
@@ -446,57 +593,53 @@ def create_unique_companies(rows):
 
     for row in rows:
 
-        key = (
-            row["country_code"],
-            row["company_id"],
-            row["company_name"]
-        )
+        key = company_key(row)
 
         if key not in companies:
 
             companies[key] = {
 
                 "country_code":
-                    row["country_code"],
+                    row.get("country_code", ""),
 
                 "country":
-                    row["country"],
+                    row.get("country", ""),
 
                 "company_name":
-                    row["company_name"],
+                    row.get("company_name", ""),
 
                 "company_id":
-                    row["company_id"],
+                    row.get("company_id", ""),
 
                 "company_uuid":
-                    row["company_uuid"],
+                    row.get("company_uuid", ""),
 
                 "company_slug":
-                    row["company_slug"],
+                    row.get("company_slug", ""),
 
                 "company_ep_slug":
-                    row["company_ep_slug"],
+                    row.get("company_ep_slug", ""),
 
                 "ep_id":
-                    row["ep_id"],
+                    row.get("ep_id", ""),
 
                 "distribution_area":
-                    row["distribution_area"],
+                    row.get("distribution_area", ""),
 
                 "founding_year":
-                    row["founding_year"],
+                    row.get("founding_year", ""),
 
                 "email_existing":
-                    row["email_existing"],
+                    row.get("email_existing", ""),
 
                 "is_ep_member":
-                    row["is_ep_member"],
+                    row.get("is_ep_member", ""),
 
                 "is_wlw_member":
-                    row["is_wlw_member"],
+                    row.get("is_wlw_member", ""),
 
                 "is_quick_responder":
-                    row["is_quick_responder"],
+                    row.get("is_quick_responder", ""),
 
                 "products_count":
                     0,
@@ -508,141 +651,73 @@ def create_unique_companies(rows):
 
 
 # ============================================================
-# OFFER ID
+# COMPARE DATA
 # ============================================================
 
-def get_offer_id(row):
+def compare_data(previous, current, key_function):
 
-    if row.get("offer_uuid"):
-        return "UUID:" + row["offer_uuid"]
-
-    if row.get("auction_id"):
-        return "AUCTION:" + row["auction_id"]
-
-    if row.get("slug_id"):
-        return "SLUGID:" + row["slug_id"]
-
-    if row.get("offer_slug"):
-        return "SLUG:" + row["offer_slug"]
-
-    return (
-        "FALLBACK:"
-        + row.get("country_code", "")
-        + "|"
-        + row.get("company_id", "")
-        + "|"
-        + row.get("product_name", "")
-    )
-
-
-# ============================================================
-# COMPANY ID
-# ============================================================
-
-def get_company_id(row):
-
-    if row.get("company_id"):
-        return "COMPANY:" + row["company_id"]
-
-    if row.get("company_uuid"):
-        return "UUID:" + row["company_uuid"]
-
-    if row.get("ep_id"):
-        return "EP:" + row["ep_id"]
-
-    return (
-        "FALLBACK:"
-        + row.get("country_code", "")
-        + "|"
-        + row.get("company_name", "")
-    )
-
-
-# ============================================================
-# NORMALIZED ROW
-# ============================================================
-
-def normalized_row(row):
-
-    return {
-        key: clean_text(value)
-        for key, value in row.items()
+    previous_map = {
+        key_function(row): row
+        for row in previous
     }
 
+    current_map = {
+        key_function(row): row
+        for row in current
+    }
 
-# ============================================================
-# COMPARE RECORDS
-# ============================================================
+    previous_keys = set(
+        previous_map.keys()
+    )
 
-def compare_records(
-    previous,
-    current,
-    id_function
-):
+    current_keys = set(
+        current_map.keys()
+    )
 
-    previous_map = {}
+    new_keys = (
+        current_keys
+        - previous_keys
+    )
 
-    current_map = {}
+    removed_keys = (
+        previous_keys
+        - current_keys
+    )
 
-    for row in previous:
+    common_keys = (
+        current_keys
+        & previous_keys
+    )
 
-        previous_map[
-            id_function(row)
-        ] = normalized_row(row)
+    new_rows = [
+        current_map[key]
+        for key in new_keys
+    ]
 
-    for row in current:
-
-        current_map[
-            id_function(row)
-        ] = normalized_row(row)
-
-    previous_ids = set(previous_map.keys())
-
-    current_ids = set(current_map.keys())
-
-    new_ids = current_ids - previous_ids
-
-    removed_ids = previous_ids - current_ids
-
-    common_ids = current_ids & previous_ids
-
-    new_rows = []
-
-    removed_rows = []
+    removed_rows = [
+        previous_map[key]
+        for key in removed_keys
+    ]
 
     changed_rows = []
 
-    for record_id in new_ids:
+    for key in common_keys:
 
-        new_rows.append(
-            current_map[record_id]
-        )
+        old = previous_map[key]
 
-    for record_id in removed_ids:
+        new = current_map[key]
 
-        removed_rows.append(
-            previous_map[record_id]
-        )
+        if old != new:
 
-    for record_id in common_ids:
+            changed = dict(new)
 
-        old_row = previous_map[record_id]
-
-        new_row = current_map[record_id]
-
-        if old_row != new_row:
-
-            changed_row = dict(new_row)
-
-            changed_row["change_id"] = record_id
-
-            changed_row["previous_data"] = json.dumps(
-                old_row,
+            changed["_previous"] = json.dumps(
+                old,
                 ensure_ascii=False
             )
 
             changed_rows.append(
-                changed_row
+                changed
             )
 
     return (
@@ -653,46 +728,23 @@ def compare_records(
 
 
 # ============================================================
-# FIND PREVIOUS SNAPSHOT
+# SAVE JSON
 # ============================================================
 
-def find_previous_snapshot():
+def save_json(data, filename):
 
-    if not os.path.exists(HISTORY_DIR):
+    with open(
+        filename,
+        "w",
+        encoding="utf-8"
+    ) as f:
 
-        return None
-
-    dates = []
-
-    for name in os.listdir(HISTORY_DIR):
-
-        path = os.path.join(
-            HISTORY_DIR,
-            name
+        json.dump(
+            data,
+            f,
+            ensure_ascii=False,
+            indent=2
         )
-
-        if (
-            os.path.isdir(path)
-            and re.match(
-                r"^\d{4}-\d{2}-\d{2}$",
-                name
-            )
-        ):
-
-            dates.append(name)
-
-    dates = sorted(dates)
-
-    previous_dates = [
-        d for d in dates
-        if d < TODAY
-    ]
-
-    if not previous_dates:
-
-        return None
-
-    return previous_dates[-1]
 
 
 # ============================================================
@@ -700,8 +752,6 @@ def find_previous_snapshot():
 # ============================================================
 
 def main():
-
-    create_directories()
 
     print("=" * 70)
     print("EUROPAGES - B2B YUG MONITOR")
@@ -718,8 +768,10 @@ def main():
         ", ".join(TARGET_COUNTRIES.values())
     )
 
+    create_directories()
+
     # --------------------------------------------------------
-    # FIND PREVIOUS SNAPSHOT
+    # FIND PREVIOUS DAY
     # --------------------------------------------------------
 
     previous_date = find_previous_snapshot()
@@ -730,7 +782,8 @@ def main():
     if previous_date:
 
         previous_dir = os.path.join(
-            HISTORY_DIR,
+            DATA_DIR,
+            "history",
             previous_date
         )
 
@@ -787,18 +840,20 @@ def main():
     if not ufs_session_id:
 
         print()
-        print("ERROR: ufsSessionId not found.")
+        print(
+            "ERROR: ufsSessionId not found."
+        )
 
         return
+
+    # --------------------------------------------------------
+    # DOWNLOAD
+    # --------------------------------------------------------
 
     print()
     print("=" * 70)
     print("DOWNLOADING EUROPAGES DATA")
     print("=" * 70)
-
-    # --------------------------------------------------------
-    # FIRST PAGE
-    # --------------------------------------------------------
 
     first_data = get_page(
         session,
@@ -874,7 +929,7 @@ def main():
         )
 
     # --------------------------------------------------------
-    # FILTER
+    # FILTER COUNTRIES
     # --------------------------------------------------------
 
     target_offers = {
@@ -910,7 +965,9 @@ def main():
         for offer in target_offers[country]:
 
             rows.append(
-                extract_offer(offer)
+                extract_offer(
+                    offer
+                )
             )
 
     # --------------------------------------------------------
@@ -924,46 +981,44 @@ def main():
     )
 
     # --------------------------------------------------------
-    # CURRENT HISTORY DIRECTORY
+    # COMPARE
     # --------------------------------------------------------
 
-    today_dir = os.path.join(
-        HISTORY_DIR,
-        TODAY
-    )
+    if previous_date:
 
-    os.makedirs(
-        today_dir,
-        exist_ok=True
-    )
+        (
+            new_offers,
+            removed_offers,
+            changed_offers
+        ) = compare_data(
+            previous_offers,
+            rows,
+            offer_key
+        )
 
-    # --------------------------------------------------------
-    # COMPARE OFFERS
-    # --------------------------------------------------------
+        (
+            new_companies,
+            removed_companies,
+            changed_companies
+        ) = compare_data(
+            previous_companies,
+            unique_companies,
+            company_key
+        )
 
-    (
-        new_offers,
-        removed_offers,
-        changed_offers
-    ) = compare_records(
-        previous_offers,
-        rows,
-        get_offer_id
-    )
+    else:
 
-    # --------------------------------------------------------
-    # COMPARE COMPANIES
-    # --------------------------------------------------------
+        new_offers = rows
 
-    (
-        new_companies,
-        removed_companies,
-        changed_companies
-    ) = compare_records(
-        previous_companies,
-        unique_companies,
-        get_company_id
-    )
+        removed_offers = []
+
+        changed_offers = []
+
+        new_companies = unique_companies
+
+        removed_companies = []
+
+        changed_companies = []
 
     # --------------------------------------------------------
     # SAVE LATEST
@@ -992,7 +1047,7 @@ def main():
     save_csv(
         rows,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "offers_ro_gr.csv"
         )
     )
@@ -1000,7 +1055,7 @@ def main():
     save_csv(
         unique_companies,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "companies_ro_gr.csv"
         )
     )
@@ -1012,7 +1067,7 @@ def main():
     save_csv(
         new_offers,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "new_offers.csv"
         )
     )
@@ -1020,7 +1075,7 @@ def main():
     save_csv(
         removed_offers,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "removed_offers.csv"
         )
     )
@@ -1028,7 +1083,7 @@ def main():
     save_csv(
         changed_offers,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "changed_offers.csv"
         )
     )
@@ -1036,7 +1091,7 @@ def main():
     save_csv(
         new_companies,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "new_companies.csv"
         )
     )
@@ -1044,7 +1099,7 @@ def main():
     save_csv(
         removed_companies,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "removed_companies.csv"
         )
     )
@@ -1052,7 +1107,7 @@ def main():
     save_csv(
         changed_companies,
         os.path.join(
-            today_dir,
+            HISTORY_DIR,
             "changed_companies.csv"
         )
     )
@@ -1067,7 +1122,13 @@ def main():
 
         "search": SEARCH,
 
-        "total_europages_offers":
+        "target_countries":
+            TARGET_COUNTRIES,
+
+        "previous_date":
+            previous_date,
+
+        "total_offers":
             total_offers,
 
         "downloaded_offers":
@@ -1084,15 +1145,6 @@ def main():
 
         "unique_companies":
             len(unique_companies),
-
-        "comparison_date":
-            previous_date,
-
-        "previous_offers":
-            len(previous_offers),
-
-        "previous_companies":
-            len(previous_companies),
 
         "new_offers":
             len(new_offers),
@@ -1113,28 +1165,12 @@ def main():
             len(changed_companies),
     }
 
-    summary_file = os.path.join(
-        today_dir,
-        "summary.json"
-    )
-
-    with open(
-        summary_file,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            summary,
-            f,
-            ensure_ascii=False,
-            indent=2
+    save_json(
+        summary,
+        os.path.join(
+            HISTORY_DIR,
+            "summary.json"
         )
-
-    print()
-    print(
-        "SAVED:",
-        summary_file
     )
 
     # --------------------------------------------------------
@@ -1221,6 +1257,6 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-    main()
 
+    main()
    

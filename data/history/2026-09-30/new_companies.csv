@@ -1,0 +1,3 @@
+﻿date,country_code,country,company_name,company_id,company_uuid,company_slug,company_ep_slug,ep_id,distribution_area,founding_year,email_existing,is_ep_member,is_wlw_member,is_quick_responder,products_count
+2026-09-30,GR,Гърция,XENOS PACKAGING SA,21432917,4d6c88e2-d7e8-3bfb-8fbe-0f85c3c1ace6,xenos-packaging-sa-21432917,XENOS-PACKAGING-SA,00000005518776-001,international,1991,True,0,0,False,1
+2026-09-30,GR,Гърция,SPECIAL MIX,20176906,db40af64-30c2-3ae7-ac12-9f14e8f4124c,special-mix-20176906,SPECIAL-MIX,00000004609610-421430001,europe,1995,True,0,0,False,1

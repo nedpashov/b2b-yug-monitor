@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-01",
+  "search": "packaging",
+  "target_countries": {
+    "RO": "Румъния",
+    "GR": "Гърция"
+  },
+  "previous_snapshot": "2026-09-30",
+  "total_offers_reported_by_europages": 746,
+  "downloaded_offers": 746,
+  "filtered_offers": 24,
+  "unique_companies": 7,
+  "new_offers": 4,
+  "changed_offers": 0,
+  "removed_offers": 0,
+  "returned_offers": 0,
+  "pending_removed_offers": 0,
+  "new_companies": 1,
+  "changed_companies": 0,
+  "removed_companies": 0,
+  "returned_companies": 0,
+  "pending_removed_companies": 0,
+  "removal_threshold_days": 3
+}

@@ -1,354 +1,769 @@
 import csv
-import json
 import os
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
-TARGET_COUNTRIES = {"RO": "Румъния", "GR": "Гърция"}
+
+# ============================================================
+# B2B YUG - LEAD AGENT
+# VERSION 2
+# ============================================================
+
+INPUT_FILE = "data/latest/offers_ro_gr.csv"
+
 LATEST_DIR = "data/latest"
 HISTORY_DIR = "data/history"
 
-
-def get_today():
-    return datetime.now(ZoneInfo("Europe/Sofia")).strftime("%Y-%m-%d")
+MIN_SCORE = 30
 
 
-def load_csv(path):
-    if not os.path.exists(path):
-        return []
-    with open(path, "r", encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
+# ============================================================
+# HELPERS
+# ============================================================
+
+def clean(value):
+    if value is None:
+        return ""
+
+    return " ".join(str(value).split()).strip()
 
 
-def load_json(path, default=None):
-    if not os.path.exists(path):
-        return {} if default is None else default
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {} if default is None else default
+def save_csv(rows, filename):
 
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
 
-def save_csv(rows, path, fields):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+    if not rows:
+        print(f"SAVED EMPTY: {filename}")
+
+        # Create an empty file with headers
+        with open(
+            filename,
+            "w",
+            newline="",
+            encoding="utf-8-sig"
+        ) as f:
+
+            writer = csv.writer(f)
+
+            writer.writerow([
+                "score",
+                "priority",
+                "country",
+                "company_name",
+                "product_name",
+                "category",
+                "description",
+                "offer_url",
+                "company_id",
+                "company_uuid",
+                "company_slug",
+                "reason",
+            ])
+
+        return
+
+    fieldnames = list(rows[0].keys())
+
+    with open(
+        filename,
+        "w",
+        newline="",
+        encoding="utf-8-sig"
+    ) as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=fieldnames
+        )
+
         writer.writeheader()
         writer.writerows(rows)
-    print("SAVED:", path)
-    print("ROWS:", len(rows))
+
+    print(f"SAVED: {filename}")
+    print(f"ROWS: {len(rows)}")
 
 
-def save_json(data, path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+# ============================================================
+# LOAD OFFERS
+# ============================================================
+
+def load_offers():
+
+    if not os.path.exists(INPUT_FILE):
+
+        print()
+        print("ERROR:")
+        print(f"Input file not found: {INPUT_FILE}")
+
+        return []
+
+    rows = []
+
+    with open(
+        INPUT_FILE,
+        "r",
+        newline="",
+        encoding="utf-8-sig"
+    ) as f:
+
+        reader = csv.DictReader(f)
+
+        for row in reader:
+
+            rows.append({
+                key: clean(value)
+                for key, value in row.items()
+            })
+
+    return rows
 
 
-def truthy(value):
-    return str(value).strip().lower() in {"true", "1", "yes", "y"}
+# ============================================================
+# SCORE OFFER
+# ============================================================
 
+def score_offer(row):
 
-def company_key(row):
-    if row.get("company_id"):
-        return f"id:{row.get('country_code','')}:{row['company_id']}"
-    if row.get("company_uuid"):
-        return f"uuid:{row.get('country_code','')}:{row['company_uuid']}"
-    if row.get("company_slug"):
-        return f"slug:{row.get('country_code','')}:{row['company_slug']}"
-    return f"name:{row.get('country_code','')}:{row.get('company_name','').strip().lower()}"
-
-
-def offer_key(row):
-    if row.get("offer_uuid"):
-        return "uuid:" + row["offer_uuid"]
-    if row.get("slug_id"):
-        return "slugid:" + row["slug_id"]
-    if row.get("auction_id") and row.get("offer_slug"):
-        return "auction_slug:" + row["auction_id"] + ":" + row["offer_slug"]
-    return "slug:" + row.get("offer_slug", "")
-
-
-def score_lead(row, event_type, new_company=False):
     score = 0
     reasons = []
 
-    if event_type == "NEW OFFER":
-        score += 50
-        reasons.append("нова оферта")
-    elif event_type == "RETURNED OFFER":
-        score += 35
-        reasons.append("върнала се оферта")
-    elif event_type == "CHANGED OFFER":
-        score += 20
-        reasons.append("променена оферта")
+    company = clean(
+        row.get("company_name")
+    )
 
-    if new_company:
-        score += 25
-        reasons.append("нова компания")
-    if truthy(row.get("email_existing")):
-        score += 10
-        reasons.append("има наличен email")
-    if truthy(row.get("is_ep_member")):
-        score += 5
-        reasons.append("Europages member")
-    if truthy(row.get("is_quick_responder")):
-        score += 5
-        reasons.append("Quick Responder")
-    if row.get("founding_year"):
-        score += 2
-    if len(row.get("description", "")) >= 100:
-        score += 3
+    product = clean(
+        row.get("product_name")
+    )
 
-    return min(score, 100), ", ".join(reasons)
+    description = clean(
+        row.get("description")
+    )
 
+    category = clean(
+        row.get("category")
+    )
 
-def make_leads(today, result_files):
-    new_offers = result_files["new_offers"]
-    returned_offers = result_files["returned_offers"]
-    changed_offers = result_files["changed_offers"]
-    new_companies = result_files["new_companies"]
+    country = clean(
+        row.get("country")
+    )
 
-    new_company_keys = {company_key(r) for r in new_companies}
-    leads = []
-    seen = set()
+    text = (
+        f"{product} "
+        f"{description} "
+        f"{category} "
+        f"{company}"
+    ).lower()
 
-    groups = [
-        ("NEW OFFER", new_offers),
-        ("RETURNED OFFER", returned_offers),
-        ("CHANGED OFFER", changed_offers),
+    # --------------------------------------------------------
+    # PACKAGING RELEVANCE
+    # --------------------------------------------------------
+
+    packaging_keywords = [
+        "packaging",
+        "package",
+        "pack",
+        "packaging material",
+        "plastic packaging",
+        "food packaging",
+        "flexible packaging",
+        "paper packaging",
+        "cardboard",
+        "carton",
+        "box",
+        "bottle",
+        "container",
+        "film",
+        "bag",
+        "pouch",
+        "label",
+        "wrapping",
     ]
 
-    for event_type, rows in groups:
-        for row in rows:
-            key = offer_key(row)
-            if key in seen:
-                continue
-            seen.add(key)
+    matched = []
 
-            is_new_company = company_key(row) in new_company_keys
-            score, reasons = score_lead(row, event_type, is_new_company)
+    for keyword in packaging_keywords:
 
-            leads.append({
-                "date": today,
-                "lead_score": score,
-                "event_type": event_type,
-                "country_code": row.get("country_code", ""),
-                "country": row.get(
-                    "country",
-                    TARGET_COUNTRIES.get(row.get("country_code", ""), "")
-                ),
-                "company_name": row.get("company_name", ""),
-                "company_id": row.get("company_id", ""),
-                "company_slug": row.get("company_slug", ""),
-                "company_ep_slug": row.get("company_ep_slug", ""),
-                "product_name": row.get("product_name", ""),
-                "category": row.get("category", ""),
-                "description": row.get("description", ""),
-                "email_existing": row.get("email_existing", ""),
-                "is_ep_member": row.get("is_ep_member", ""),
-                "is_quick_responder": row.get("is_quick_responder", ""),
-                "founding_year": row.get("founding_year", ""),
-                "offer_url": row.get("offer_url", ""),
-                "lead_reasons": reasons,
-                "recommended_action": (
-                    "Провери офертата и компанията; "
-                    "ако е релевантна, свържи се с фирмата."
-                ),
-            })
+        if keyword in text:
+
+            matched.append(keyword)
+
+    if matched:
+
+        score += min(40, 10 + len(matched) * 5)
+
+        reasons.append(
+            "Packaging relevance: "
+            + ", ".join(matched[:5])
+        )
+
+    # --------------------------------------------------------
+    # PRODUCT INFORMATION
+    # --------------------------------------------------------
+
+    if product:
+
+        score += 10
+
+        reasons.append(
+            "Specific product information available"
+        )
+
+    # --------------------------------------------------------
+    # DESCRIPTION
+    # --------------------------------------------------------
+
+    if len(description) >= 50:
+
+        score += 10
+
+        reasons.append(
+            "Detailed company/product description"
+        )
+
+    # --------------------------------------------------------
+    # COMPANY
+    # --------------------------------------------------------
+
+    if company:
+
+        score += 10
+
+        reasons.append(
+            "Identifiable company"
+        )
+
+    # --------------------------------------------------------
+    # COMPANY IDENTIFIERS
+    # --------------------------------------------------------
+
+    if row.get("company_id"):
+
+        score += 5
+
+    if row.get("company_uuid"):
+
+        score += 5
+
+    # --------------------------------------------------------
+    # URL
+    # --------------------------------------------------------
+
+    if row.get("offer_url"):
+
+        score += 5
+
+        reasons.append(
+            "Direct Europages offer URL available"
+        )
+
+    # --------------------------------------------------------
+    # COUNTRY
+    # --------------------------------------------------------
+
+    if country in [
+        "Румъния",
+        "Гърция",
+    ]:
+
+        score += 5
+
+    # --------------------------------------------------------
+    # PRIORITY
+    # --------------------------------------------------------
+
+    if score >= 80:
+
+        priority = "HIGH"
+
+    elif score >= 60:
+
+        priority = "MEDIUM"
+
+    elif score >= MIN_SCORE:
+
+        priority = "LOW"
+
+    else:
+
+        priority = "IGNORE"
+
+    return score, priority, reasons
+
+
+# ============================================================
+# CREATE LEADS
+# ============================================================
+
+def create_leads(rows):
+
+    leads = []
+
+    seen = set()
+
+    for row in rows:
+
+        score, priority, reasons = score_offer(
+            row
+        )
+
+        if score < MIN_SCORE:
+
+            continue
+
+        company_id = clean(
+            row.get("company_id")
+        )
+
+        company_uuid = clean(
+            row.get("company_uuid")
+        )
+
+        company_name = clean(
+            row.get("company_name")
+        )
+
+        product_name = clean(
+            row.get("product_name")
+        )
+
+        # ----------------------------------------------------
+        # Avoid exact duplicate leads
+        # ----------------------------------------------------
+
+        key = (
+            company_id,
+            company_uuid,
+            company_name,
+            product_name,
+        )
+
+        if key in seen:
+
+            continue
+
+        seen.add(key)
+
+        leads.append({
+
+            "score":
+                score,
+
+            "priority":
+                priority,
+
+            "country":
+                clean(row.get("country")),
+
+            "company_name":
+                company_name,
+
+            "product_name":
+                product_name,
+
+            "category":
+                clean(row.get("category")),
+
+            "description":
+                clean(row.get("description")),
+
+            "offer_url":
+                clean(row.get("offer_url")),
+
+            "company_id":
+                company_id,
+
+            "company_uuid":
+                company_uuid,
+
+            "company_slug":
+                clean(row.get("company_slug")),
+
+            "reason":
+                "; ".join(reasons),
+        })
+
+    # --------------------------------------------------------
+    # Sort by score
+    # --------------------------------------------------------
 
     leads.sort(
-        key=lambda x: (
-            -int(x["lead_score"]),
-            x["country_code"],
-            x["company_name"],
-            x["product_name"],
-        )
+        key=lambda x: x["score"],
+        reverse=True
     )
+
     return leads
 
 
-def make_report(today, summary, leads, current_offers, current_companies):
-    ro_offers = sum(1 for r in current_offers if r.get("country_code") == "RO")
-    gr_offers = sum(1 for r in current_offers if r.get("country_code") == "GR")
+# ============================================================
+# CREATE DAILY REPORT
+# ============================================================
 
-    ro_companies = {
-        company_key(r)
-        for r in current_companies
-        if r.get("country_code") == "RO"
-    }
-    gr_companies = {
-        company_key(r)
-        for r in current_companies
-        if r.get("country_code") == "GR"
-    }
+def create_report(
+    rows,
+    leads,
+    report_file
+):
 
-    lines = [
-        f"# B2B YUG Daily Lead Report — {today}",
-        "",
-        "## Daily summary",
-        "",
-        f"- Search: **{summary.get('search', '')}**",
-        f"- Romania: **{ro_offers} offers / {len(ro_companies)} companies**",
-        f"- Greece: **{gr_offers} offers / {len(gr_companies)} companies**",
-        f"- Total RO + GR: **{len(current_offers)} offers / {len(current_companies)} companies**",
-        f"- 🆕 New offers: **{summary.get('new_offers', 0)}**",
-        f"- 🏢 New companies: **{summary.get('new_companies', 0)}**",
-        f"- 🔄 Changed offers: **{summary.get('changed_offers', 0)}**",
-        f"- ↩ Returned offers: **{summary.get('returned_offers', 0)}**",
-        f"- ❌ Removed offers: **{summary.get('removed_offers', 0)}**",
-        "",
-        "## Leads to review",
-        "",
+    os.makedirs(
+        os.path.dirname(report_file),
+        exist_ok=True
+    )
+
+    today = datetime.now().strftime(
+        "%Y-%m-%d"
+    )
+
+    high = [
+        x for x in leads
+        if x["priority"] == "HIGH"
     ]
 
-    if not leads:
-        lines.append("No actionable new, returned or changed offers today.")
-    else:
-        for i, lead in enumerate(leads[:20], 1):
-            lines.extend([
-                f"### {i}. {lead['company_name']} — {lead['product_name']}",
-                f"- **Score:** {lead['lead_score']}/100",
-                f"- **Event:** {lead['event_type']}",
-                f"- **Country:** {lead['country']}",
-                f"- **Reasons:** {lead['lead_reasons']}",
-                f"- **Email existing:** {lead['email_existing'] or 'unknown'}",
-                f"- **EP member:** {lead['is_ep_member'] or 'unknown'}",
-                f"- **Quick responder:** {lead['is_quick_responder'] or 'unknown'}",
-                f"- **Offer:** {lead['offer_url'] or 'no URL'}",
-                "",
-            ])
+    medium = [
+        x for x in leads
+        if x["priority"] == "MEDIUM"
+    ]
 
-    lines.extend([
-        "## Scoring",
-        "",
-        "The score is a transparent rule-based signal, not a guarantee of commercial value:",
-        "- New offer: +50",
-        "- Returned offer: +35",
-        "- Changed offer: +20",
-        "- New company: +25",
-        "- Existing email signal: +10",
-        "- Europages member: +5",
-        "- Quick Responder: +5",
-        "- Founding year present: +2",
-        "- Detailed description (100+ characters): +3",
-    ])
+    low = [
+        x for x in leads
+        if x["priority"] == "LOW"
+    ]
 
-    return "\n".join(lines) + "\n"
+    with open(
+        report_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
 
+        f.write("# B2B YUG DAILY LEAD REPORT\n\n")
 
-def main():
-    today = get_today()
-    history_dir = os.path.join(HISTORY_DIR, today)
-    os.makedirs(history_dir, exist_ok=True)
-
-    summary = load_json(
-        os.path.join(history_dir, "summary.json"),
-        {}
-    )
-
-    current_offers = load_csv(
-        os.path.join(LATEST_DIR, "offers_ro_gr.csv")
-    )
-    current_companies = load_csv(
-        os.path.join(LATEST_DIR, "companies_ro_gr.csv")
-    )
-
-    result_files = {}
-    for name in [
-        "new_offers",
-        "returned_offers",
-        "changed_offers",
-        "new_companies",
-    ]:
-        result_files[name] = load_csv(
-            os.path.join(history_dir, f"{name}.csv")
+        f.write(
+            f"Date: {today}\n\n"
         )
 
-    leads = make_leads(today, result_files)
+        f.write("## SUMMARY\n\n")
 
-    lead_fields = [
-        "date",
-        "lead_score",
-        "event_type",
-        "country_code",
-        "country",
-        "company_name",
-        "company_id",
-        "company_slug",
-        "company_ep_slug",
-        "product_name",
-        "category",
-        "description",
-        "email_existing",
-        "is_ep_member",
-        "is_quick_responder",
-        "founding_year",
-        "offer_url",
-        "lead_reasons",
-        "recommended_action",
-    ]
+        f.write(
+            f"- Offers analysed: {len(rows)}\n"
+        )
+
+        f.write(
+            f"- Leads: {len(leads)}\n"
+        )
+
+        f.write(
+            f"- HIGH priority: {len(high)}\n"
+        )
+
+        f.write(
+            f"- MEDIUM priority: {len(medium)}\n"
+        )
+
+        f.write(
+            f"- LOW priority: {len(low)}\n\n"
+        )
+
+        if leads:
+
+            top = leads[0]
+
+            f.write("## TOP LEAD\n\n")
+
+            f.write(
+                f"**{top['company_name']}**\n\n"
+            )
+
+            f.write(
+                f"- Country: {top['country']}\n"
+            )
+
+            f.write(
+                f"- Product: {top['product_name']}\n"
+            )
+
+            f.write(
+                f"- Score: {top['score']}\n"
+            )
+
+            f.write(
+                f"- Priority: {top['priority']}\n"
+            )
+
+            f.write(
+                f"- Reason: {top['reason']}\n"
+            )
+
+            if top["offer_url"]:
+
+                f.write(
+                    f"- Offer: {top['offer_url']}\n"
+                )
+
+            f.write("\n")
+
+        else:
+
+            f.write(
+                "## TOP LEAD\n\n"
+            )
+
+            f.write(
+                "No qualifying leads found.\n\n"
+            )
+
+        # ----------------------------------------------------
+        # ALL LEADS
+        # ----------------------------------------------------
+
+        f.write("## ALL LEADS\n\n")
+
+        for index, lead in enumerate(
+            leads,
+            start=1
+        ):
+
+            f.write(
+                f"### {index}. "
+                f"{lead['company_name']}\n\n"
+            )
+
+            f.write(
+                f"- Country: {lead['country']}\n"
+            )
+
+            f.write(
+                f"- Product: {lead['product_name']}\n"
+            )
+
+            f.write(
+                f"- Score: {lead['score']}\n"
+            )
+
+            f.write(
+                f"- Priority: {lead['priority']}\n"
+            )
+
+            f.write(
+                f"- Reason: {lead['reason']}\n"
+            )
+
+            if lead["offer_url"]:
+
+                f.write(
+                    f"- Offer URL: "
+                    f"{lead['offer_url']}\n"
+                )
+
+            f.write("\n")
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    print("=" * 70)
+    print("B2B YUG LEAD AGENT")
+    print("VERSION 2 - REAL OFFER ANALYSIS")
+    print("=" * 70)
+
+    print()
+    print(
+        "INPUT:",
+        INPUT_FILE
+    )
+
+    rows = load_offers()
+
+    print()
+    print(
+        "OFFERS LOADED:",
+        len(rows)
+    )
+
+    if not rows:
+
+        print()
+        print(
+            "No offers available."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # CREATE LEADS
+    # --------------------------------------------------------
+
+    leads = create_leads(
+        rows
+    )
+
+    # --------------------------------------------------------
+    # DATE
+    # --------------------------------------------------------
+
+    today = datetime.now().strftime(
+        "%Y-%m-%d"
+    )
+
+    history_dir = os.path.join(
+        HISTORY_DIR,
+        today
+    )
+
+    # --------------------------------------------------------
+    # SAVE LATEST
+    # --------------------------------------------------------
+
+    latest_leads = os.path.join(
+        LATEST_DIR,
+        "leads.csv"
+    )
+
+    latest_report = os.path.join(
+        LATEST_DIR,
+        "daily_report.md"
+    )
 
     save_csv(
         leads,
-        os.path.join(LATEST_DIR, "leads.csv"),
-        lead_fields,
+        latest_leads
     )
+
+    create_report(
+        rows,
+        leads,
+        latest_report
+    )
+
+    print(
+        "SAVED:",
+        latest_report
+    )
+
+    # --------------------------------------------------------
+    # SAVE HISTORY
+    # --------------------------------------------------------
+
+    history_leads = os.path.join(
+        history_dir,
+        "leads.csv"
+    )
+
+    history_report = os.path.join(
+        history_dir,
+        "daily_report.md"
+    )
+
     save_csv(
         leads,
-        os.path.join(history_dir, "leads.csv"),
-        lead_fields,
+        history_leads
     )
 
-    save_json(
+    create_report(
+        rows,
         leads,
-        os.path.join(LATEST_DIR, "leads.json"),
-    )
-    save_json(
-        leads,
-        os.path.join(history_dir, "leads.json"),
+        history_report
     )
 
-    report = make_report(
-        today,
-        summary,
-        leads,
-        current_offers,
-        current_companies,
+    print(
+        "SAVED:",
+        history_report
     )
 
-    for path in [
-        os.path.join(LATEST_DIR, "daily_report.md"),
-        os.path.join(history_dir, "daily_report.md"),
-    ]:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(report)
-        print("SAVED:", path)
+    # --------------------------------------------------------
+    # SUMMARY
+    # --------------------------------------------------------
+
+    high_count = sum(
+        1 for x in leads
+        if x["priority"] == "HIGH"
+    )
+
+    medium_count = sum(
+        1 for x in leads
+        if x["priority"] == "MEDIUM"
+    )
+
+    low_count = sum(
+        1 for x in leads
+        if x["priority"] == "LOW"
+    )
 
     print()
     print("=" * 70)
     print("B2B LEAD AGENT")
     print("=" * 70)
-    print("LEADS:", len(leads))
+
+    print()
     print(
-        "TOP LEAD:",
-        leads[0]["company_name"] if leads else "none"
+        "OFFERS ANALYSED:",
+        len(rows)
     )
+
     print(
-        "TOP SCORE:",
-        leads[0]["lead_score"] if leads else 0
+        "LEADS:",
+        len(leads)
     )
+
+    print(
+        "HIGH:",
+        high_count
+    )
+
+    print(
+        "MEDIUM:",
+        medium_count
+    )
+
+    print(
+        "LOW:",
+        low_count
+    )
+
+    if leads:
+
+        print()
+        print(
+            "TOP LEAD:",
+            leads[0]["company_name"]
+        )
+
+        print(
+            "TOP SCORE:",
+            leads[0]["score"]
+        )
+
+    else:
+
+        print()
+        print(
+            "TOP LEAD: none"
+        )
+
+        print(
+            "TOP SCORE: 0"
+        )
+
+    print()
     print(
         "SAVED:",
-        os.path.join(LATEST_DIR, "leads.csv")
+        latest_leads
     )
+
     print(
         "SAVED:",
-        os.path.join(LATEST_DIR, "daily_report.md")
+        latest_report
     )
+
+    print()
+    print("=" * 70)
+    print("LEAD AGENT COMPLETE")
     print("=" * 70)
 
+
+# ============================================================
+# START
+# ============================================================
 
 if __name__ == "__main__":
     main()

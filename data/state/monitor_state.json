@@ -307,8 +307,9 @@
       "fingerprint": "380352a4ce1e202206f5b2724bf982a0bc122fb0fc6edce4587824a22264c9c7",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:7b0cffc0-bfce-5c75-88ed-873caf5007b7": {
       "record": {
@@ -338,8 +339,9 @@
       "fingerprint": "38488b6cbb3922c19f39eb60d5a9fd6543993b4c38c444b586becede4c7dcbeb",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:234642c2-f954-5a09-b40f-359b1f864b29": {
       "record": {
@@ -369,8 +371,9 @@
       "fingerprint": "df684897ebbf8f8bd729d088dbaeacb367462a8dbe62525f74256b8150c37282",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:1e0c4e35-2240-56b3-b1da-5c346f1b3e3a": {
       "record": {
@@ -400,8 +403,9 @@
       "fingerprint": "eb606b9a9bcaf9fdc97173c3ae6b0572cfdf5154cfadfd5ef104918566bb86b8",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:09331faf-f143-5e72-b26c-c69502d160c4": {
       "record": {
@@ -431,8 +435,9 @@
       "fingerprint": "ec03c84881dcf959a01274528493f7109475e20ed43ab284718683d8c989ad84",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:fcc4ff77-0d81-506a-8b30-79116cb3164c": {
       "record": {
@@ -679,8 +684,9 @@
       "fingerprint": "66152933c4790dc749184c76304b12f56de79f6bfd4ee995f5c8be2d7331923d",
       "first_seen": "2026-10-01",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:741fddc9-c60c-5c29-ab51-64b9b612adc0": {
       "record": {
@@ -710,8 +716,9 @@
       "fingerprint": "06a0f2cb2f868f6423061f836547f5c7eaeb940b8577f485b3586da5c6f96b7e",
       "first_seen": "2026-10-01",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "uuid:8d51c260-f49b-5b88-97f0-1e39ca550705": {
       "record": {
@@ -741,8 +748,9 @@
       "fingerprint": "2f052b50c4141e6b15840ab0bae1abf2da9d3687eae3beefa2695c9a2c2fc0b0",
       "first_seen": "2026-10-01",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     }
   },
   "companies": {
@@ -815,8 +823,9 @@
       "fingerprint": "4a44c9f3bec9043e60d0efed13ebecd0f2f47507cb236bbc72e0fd11dbaa3a72",
       "first_seen": "2026-09-30",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     },
     "id:GR:21432917": {
       "record": {
@@ -911,8 +920,9 @@
       "fingerprint": "dc47a92fc48ca553c35e4edffbea6bc7bff290da2a1e81a846d2b9e6b677879b",
       "first_seen": "2026-10-01",
       "last_seen": "2026-10-01",
-      "missed_days": 2,
-      "status": "active"
+      "missed_days": 3,
+      "status": "removed",
+      "removed_date": "2026-10-02"
     }
   },
   "last_processed_date": "2026-10-02",

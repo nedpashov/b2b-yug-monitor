@@ -12,13 +12,13 @@
   "unique_companies": 5,
   "new_offers": 0,
   "changed_offers": 0,
-  "removed_offers": 0,
+  "removed_offers": 8,
   "returned_offers": 0,
-  "pending_removed_offers": 8,
+  "pending_removed_offers": 0,
   "new_companies": 0,
   "changed_companies": 0,
-  "removed_companies": 0,
+  "removed_companies": 2,
   "returned_companies": 0,
-  "pending_removed_companies": 2,
+  "pending_removed_companies": 0,
   "removal_threshold_days": 3
 }

@@ -7,7 +7,7 @@ from datetime import datetime
 
 # ============================================================
 # B2B YUG LEAD AGENT
-# VERSION 3 - CONTACT & SALES INTELLIGENCE
+# VERSION 4 - SALES INTELLIGENCE
 # ============================================================
 
 INPUT_FILE = "data/latest/offers_ro_gr.csv"
@@ -41,6 +41,7 @@ def normalize(value):
 def first_non_empty(*values):
     for value in values:
         value = clean(value)
+
         if value:
             return value
 
@@ -52,6 +53,16 @@ def safe_int(value):
         return int(float(value))
     except Exception:
         return 0
+
+
+def is_true(value):
+    return normalize(value) in [
+        "true",
+        "1",
+        "yes",
+        "y",
+        "да",
+    ]
 
 
 # ============================================================
@@ -80,6 +91,7 @@ def load_offers(filename):
         rows = []
 
         for row in reader:
+
             rows.append(
                 {
                     key: clean(value)
@@ -91,7 +103,7 @@ def load_offers(filename):
 
 
 # ============================================================
-# FIND CONTACT / WEBSITE FIELDS
+# FIND FIELDS
 # ============================================================
 
 def find_field(row, possible_names):
@@ -100,7 +112,9 @@ def find_field(row, possible_names):
 
         if name in row:
 
-            value = clean(row.get(name))
+            value = clean(
+                row.get(name)
+            )
 
             if value:
                 return value
@@ -123,8 +137,10 @@ def find_email(row):
     if value:
         return value
 
-    # Try to find email inside any field
-    email_pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    email_pattern = (
+        r"[A-Za-z0-9._%+-]+"
+        r"@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    )
 
     for field_value in row.values():
 
@@ -141,7 +157,7 @@ def find_email(row):
 
 def find_phone(row):
 
-    value = find_field(
+    return find_field(
         row,
         [
             "phone",
@@ -149,15 +165,14 @@ def find_phone(row):
             "telephone_number",
             "phone_number",
             "mobile",
+            "contact_phone",
         ]
     )
-
-    return value
 
 
 def find_website(row):
 
-    value = find_field(
+    return find_field(
         row,
         [
             "website",
@@ -166,8 +181,6 @@ def find_website(row):
             "website_url",
         ]
     )
-
-    return value
 
 
 # ============================================================
@@ -202,7 +215,7 @@ def company_key(row):
 
 
 # ============================================================
-# COMPANY GROUPING
+# GROUP COMPANIES
 # ============================================================
 
 def group_companies(rows):
@@ -219,7 +232,7 @@ def group_companies(rows):
 
 
 # ============================================================
-# PRODUCT TEXT
+# PRODUCTS
 # ============================================================
 
 def collect_products(rows):
@@ -253,7 +266,7 @@ def collect_products(rows):
 
 
 # ============================================================
-# DESCRIPTION TEXT
+# DESCRIPTIONS
 # ============================================================
 
 def collect_descriptions(rows):
@@ -304,7 +317,7 @@ def find_europages_url(rows):
 
 
 # ============================================================
-# COMPANY PROFILE URL
+# COMPANY URL
 # ============================================================
 
 def create_company_url(row):
@@ -333,35 +346,85 @@ def create_company_url(row):
 # SALES KEYWORDS
 # ============================================================
 
-POSITIVE_KEYWORDS = {
+KEYWORDS = {
 
+    # Core packaging
     "packaging": 15,
     "packaging material": 15,
     "packaging materials": 15,
-    "plastic": 8,
-    "plastics": 8,
-    "bags": 8,
-    "bag": 8,
-    "film": 8,
-    "films": 8,
-    "bottle": 8,
-    "bottles": 8,
-    "container": 8,
-    "containers": 8,
-    "box": 8,
-    "boxes": 8,
-    "carton": 8,
-    "cartons": 8,
-    "food packaging": 15,
-    "industrial packaging": 15,
-    "flexible packaging": 15,
-    "labels": 8,
+    "food packaging": 18,
+    "industrial packaging": 18,
+    "flexible packaging": 18,
+
+    # Plastic
+    "plastic": 10,
+    "plastics": 10,
+    "polyethylene": 12,
+    "polypropylene": 12,
+    "pet": 8,
+    "pvc": 8,
+
+    # Bags / films
+    "bag": 10,
+    "bags": 10,
+    "film": 10,
+    "films": 10,
+    "stretch film": 14,
+    "shrink film": 14,
+
+    # Containers
+    "bottle": 10,
+    "bottles": 10,
+    "container": 10,
+    "containers": 10,
+    "jerrycan": 8,
+    "drum": 8,
+
+    # Paper
+    "paper": 7,
+    "cardboard": 10,
+    "carton": 10,
+    "cartons": 10,
+    "corrugated": 12,
+
+    # Labels / printing
     "label": 8,
-    "printing": 5,
-    "paper": 5,
-    "cardboard": 8,
-    "corrugated": 8,
+    "labels": 8,
+    "printing": 6,
+    "printed packaging": 15,
+
+    # Industrial
+    "pallet": 7,
+    "pallets": 7,
+    "industrial": 5,
 }
+
+
+# ============================================================
+# TEXT ANALYSIS
+# ============================================================
+
+def collect_text(rows):
+
+    parts = []
+
+    for row in rows:
+
+        parts.append(
+            row.get("product_name", "")
+        )
+
+        parts.append(
+            row.get("description", "")
+        )
+
+        parts.append(
+            row.get("category", "")
+        )
+
+    return normalize(
+        " ".join(parts)
+    )
 
 
 # ============================================================
@@ -370,31 +433,13 @@ POSITIVE_KEYWORDS = {
 
 def calculate_score(rows):
 
+    text = collect_text(rows)
+
     score = 0
-
-    text_parts = []
-
-    for row in rows:
-
-        text_parts.append(
-            row.get("product_name", "")
-        )
-
-        text_parts.append(
-            row.get("description", "")
-        )
-
-        text_parts.append(
-            row.get("category", "")
-        )
-
-    text = normalize(
-        " ".join(text_parts)
-    )
 
     matched_keywords = []
 
-    for keyword, points in POSITIVE_KEYWORDS.items():
+    for keyword, points in KEYWORDS.items():
 
         if keyword in text:
 
@@ -404,40 +449,81 @@ def calculate_score(rows):
                 keyword
             )
 
-    # Multiple products
-    product_count = len(
-        collect_products(rows)
-    )
+    products = collect_products(rows)
 
-    if product_count >= 3:
+    product_count = len(products)
+
+    # Product diversity
+    if product_count >= 5:
+
+        score += 15
+
+    elif product_count >= 3:
+
         score += 10
 
     elif product_count == 2:
+
         score += 5
 
-    # Europages membership indicators
+    # Europages indicators
     first = rows[0]
 
-    if normalize(
+    if is_true(
         first.get("is_ep_member", "")
-    ) in ["true", "1", "yes"]:
+    ):
 
         score += 5
 
-    if normalize(
+    if is_true(
         first.get("is_wlw_member", "")
-    ) in ["true", "1", "yes"]:
+    ):
 
         score += 3
 
-    # Responder
-    if normalize(
+    if is_true(
         first.get("is_quick_responder", "")
-    ) in ["true", "1", "yes"]:
+    ):
 
-        score += 5
+        score += 8
 
+    # Contact availability
+    contact_bonus = 0
+
+    for row in rows:
+
+        if find_email(row):
+
+            contact_bonus += 8
+            break
+
+    if contact_bonus:
+
+        score += contact_bonus
+
+    for row in rows:
+
+        if find_phone(row):
+
+            score += 5
+            break
+
+    # Company profile
+    if create_company_url(first):
+
+        score += 4
+
+    # Website
+    for row in rows:
+
+        if find_website(row):
+
+            score += 4
+            break
+
+    # Cap
     if score > 100:
+
         score = 100
 
     return score, matched_keywords
@@ -449,86 +535,28 @@ def calculate_score(rows):
 
 def get_priority(score):
 
-    if score >= 75:
+    if score >= 70:
         return "HIGH"
 
-    if score >= 50:
+    if score >= 45:
         return "MEDIUM"
 
     return "LOW"
 
 
 # ============================================================
-# WHY LEAD
+# LEAD TYPE
 # ============================================================
 
-def create_reason(
-    rows,
-    score,
-    matched_keywords
-):
-
-    reasons = []
-
-    product_count = len(
-        collect_products(rows)
-    )
-
-    if product_count:
-
-        reasons.append(
-            f"{product_count} relevant product/offering"
-            + ("s" if product_count != 1 else "")
-        )
-
-    if matched_keywords:
-
-        keywords = ", ".join(
-            matched_keywords[:5]
-        )
-
-        reasons.append(
-            f"relevant keywords: {keywords}"
-        )
-
-    first = rows[0]
-
-    if normalize(
-        first.get("is_quick_responder", "")
-    ) in ["true", "1", "yes"]:
-
-        reasons.append(
-            "company is marked as quick responder"
-        )
-
-    if normalize(
-        first.get("is_ep_member", "")
-    ) in ["true", "1", "yes"]:
-
-        reasons.append(
-            "Europages member"
-        )
-
-    if not reasons:
-
-        reasons.append(
-            "company matches the monitored packaging search"
-        )
-
-    return "; ".join(reasons)
-
-
-# ============================================================
-# SALES OPPORTUNITY
-# ============================================================
-
-def create_sales_opportunity(
+def determine_lead_type(
     products,
     descriptions
 ):
 
     text = normalize(
-        " ".join(products + descriptions)
+        " ".join(
+            products + descriptions
+        )
     )
 
     if any(
@@ -539,13 +567,12 @@ def create_sales_opportunity(
             "polypropylene",
             "film",
             "bag",
+            "pet",
+            "pvc",
         ]
     ):
 
-        return (
-            "Potential opportunity related to "
-            "plastic/flexible packaging."
-        )
+        return "Plastic / flexible packaging"
 
     if any(
         word in text
@@ -557,28 +584,158 @@ def create_sales_opportunity(
         ]
     ):
 
-        return (
-            "Potential opportunity related to "
-            "paper/cardboard packaging."
-        )
+        return "Paper / cardboard packaging"
 
     if any(
         word in text
         for word in [
             "bottle",
             "container",
+            "jerrycan",
+            "drum",
         ]
     ):
 
-        return (
-            "Potential opportunity related to "
-            "containers/bottles."
+        return "Containers / bottles"
+
+    if any(
+        word in text
+        for word in [
+            "label",
+            "labels",
+            "printing",
+        ]
+    ):
+
+        return "Labels / printing"
+
+    return "General packaging"
+
+
+# ============================================================
+# SALES OPPORTUNITY
+# ============================================================
+
+def create_sales_opportunity(
+    products,
+    descriptions
+):
+
+    lead_type = determine_lead_type(
+        products,
+        descriptions
+    )
+
+    mapping = {
+
+        "Plastic / flexible packaging":
+            "Potential B2B opportunity related to plastic or flexible packaging.",
+
+        "Paper / cardboard packaging":
+            "Potential B2B opportunity related to paper, cardboard or corrugated packaging.",
+
+        "Containers / bottles":
+            "Potential B2B opportunity related to containers or bottles.",
+
+        "Labels / printing":
+            "Potential B2B opportunity related to labels, printing or printed packaging.",
+
+        "General packaging":
+            "Potential B2B opportunity related to packaging products or services.",
+    }
+
+    return mapping.get(
+        lead_type,
+        mapping["General packaging"]
+    )
+
+
+# ============================================================
+# WHY LEAD
+# ============================================================
+
+def create_reason(
+    rows,
+    matched_keywords
+):
+
+    reasons = []
+
+    products = collect_products(rows)
+
+    if products:
+
+        reasons.append(
+            f"{len(products)} distinct product/offering(s)"
         )
 
-    return (
-        "Potential B2B opportunity related to "
-        "packaging products or services."
+    if matched_keywords:
+
+        reasons.append(
+            "keywords: "
+            + ", ".join(
+                matched_keywords[:6]
+            )
+        )
+
+    first = rows[0]
+
+    if is_true(
+        first.get("is_quick_responder", "")
+    ):
+
+        reasons.append(
+            "quick responder"
+        )
+
+    if is_true(
+        first.get("is_ep_member", "")
+    ):
+
+        reasons.append(
+            "Europages member"
+        )
+
+    has_email = any(
+        find_email(row)
+        for row in rows
     )
+
+    has_phone = any(
+        find_phone(row)
+        for row in rows
+    )
+
+    has_website = any(
+        find_website(row)
+        for row in rows
+    )
+
+    if has_email:
+
+        reasons.append(
+            "email available in source data"
+        )
+
+    if has_phone:
+
+        reasons.append(
+            "phone available in source data"
+        )
+
+    if has_website:
+
+        reasons.append(
+            "website available in source data"
+        )
+
+    if not reasons:
+
+        reasons.append(
+            "matches monitored packaging search"
+        )
+
+    return "; ".join(reasons)
 
 
 # ============================================================
@@ -614,21 +771,44 @@ def build_lead(rows):
 
     priority = get_priority(score)
 
-    website = find_website(first)
+    email = ""
 
-    email = find_email(first)
+    phone = ""
 
-    phone = find_phone(first)
+    website = ""
 
-    europages_url = find_europages_url(rows)
+    for row in rows:
+
+        email = first_non_empty(
+            email,
+            find_email(row)
+        )
+
+        phone = first_non_empty(
+            phone,
+            find_phone(row)
+        )
+
+        website = first_non_empty(
+            website,
+            find_website(row)
+        )
+
+    europages_url = find_europages_url(
+        rows
+    )
 
     company_url = create_company_url(
         first
     )
 
+    lead_type = determine_lead_type(
+        products,
+        descriptions
+    )
+
     reason = create_reason(
         rows,
-        score,
         matched_keywords
     )
 
@@ -666,6 +846,9 @@ def build_lead(rows):
         "products":
             " | ".join(products),
 
+        "lead_type":
+            lead_type,
+
         "score":
             score,
 
@@ -678,14 +861,14 @@ def build_lead(rows):
         "sales_opportunity":
             opportunity,
 
-        "website":
-            website,
-
         "email":
             email,
 
         "phone":
             phone,
+
+        "website":
+            website,
 
         "europages_url":
             europages_url,
@@ -736,39 +919,31 @@ def save_csv(rows, filename):
         exist_ok=True
     )
 
-    fieldnames = []
+    fieldnames = [
 
-    if rows:
-
-        fieldnames = list(
-            rows[0].keys()
-        )
-
-    else:
-
-        fieldnames = [
-            "country_code",
-            "country",
-            "company_name",
-            "company_id",
-            "company_uuid",
-            "products_count",
-            "products",
-            "score",
-            "priority",
-            "lead_reason",
-            "sales_opportunity",
-            "website",
-            "email",
-            "phone",
-            "europages_url",
-            "company_url",
-            "founding_year",
-            "distribution_area",
-            "is_ep_member",
-            "is_wlw_member",
-            "is_quick_responder",
-        ]
+        "country_code",
+        "country",
+        "company_name",
+        "company_id",
+        "company_uuid",
+        "products_count",
+        "products",
+        "lead_type",
+        "score",
+        "priority",
+        "lead_reason",
+        "sales_opportunity",
+        "email",
+        "phone",
+        "website",
+        "europages_url",
+        "company_url",
+        "founding_year",
+        "distribution_area",
+        "is_ep_member",
+        "is_wlw_member",
+        "is_quick_responder",
+    ]
 
     with open(
         filename,
@@ -779,7 +954,8 @@ def save_csv(rows, filename):
 
         writer = csv.DictWriter(
             f,
-            fieldnames=fieldnames
+            fieldnames=fieldnames,
+            extrasaction="ignore"
         )
 
         writer.writeheader()
@@ -787,12 +963,19 @@ def save_csv(rows, filename):
         writer.writerows(rows)
 
     print()
-    print("SAVED:", filename)
-    print("ROWS:", len(rows))
+    print(
+        "SAVED:",
+        filename
+    )
+
+    print(
+        "ROWS:",
+        len(rows)
+    )
 
 
 # ============================================================
-# DAILY REPORT
+# REPORT
 # ============================================================
 
 def create_report(
@@ -822,12 +1005,6 @@ def create_report(
 
     lines.append("")
 
-    lines.append(
-        "## Lead Summary"
-    )
-
-    lines.append("")
-
     high = sum(
         1
         for lead in leads
@@ -847,6 +1024,12 @@ def create_report(
     )
 
     lines.append(
+        "## Lead Summary"
+    )
+
+    lines.append("")
+
+    lines.append(
         f"- HIGH: {high}"
     )
 
@@ -860,67 +1043,90 @@ def create_report(
 
     lines.append("")
 
+    # --------------------------------------------------------
+    # TOP LEADS
+    # --------------------------------------------------------
+
     if leads:
 
-        top = leads[0]
-
         lines.append(
-            "## Top Lead"
+            "## Top Leads"
         )
 
         lines.append("")
 
-        lines.append(
-            f"**{top['company_name']}**"
-        )
+        for index, lead in enumerate(
+            leads[:5],
+            start=1
+        ):
 
-        lines.append("")
-
-        lines.append(
-            f"- Country: {top['country']}"
-        )
-
-        lines.append(
-            f"- Score: {top['score']}"
-        )
-
-        lines.append(
-            f"- Priority: {top['priority']}"
-        )
-
-        lines.append(
-            f"- Products: {top['products'] or 'N/A'}"
-        )
-
-        lines.append(
-            f"- Why: {top['lead_reason']}"
-        )
-
-        lines.append(
-            f"- Opportunity: {top['sales_opportunity']}"
-        )
-
-        if top["email"]:
             lines.append(
-                f"- Email: {top['email']}"
+                f"### {index}. {lead['company_name']}"
             )
 
-        if top["phone"]:
+            lines.append("")
+
             lines.append(
-                f"- Phone: {top['phone']}"
+                f"- Country: {lead['country']}"
             )
 
-        if top["website"]:
             lines.append(
-                f"- Website: {top['website']}"
+                f"- Score: {lead['score']}"
             )
 
-        if top["europages_url"]:
             lines.append(
-                f"- Europages: {top['europages_url']}"
+                f"- Priority: {lead['priority']}"
             )
 
-        lines.append("")
+            lines.append(
+                f"- Lead type: {lead['lead_type']}"
+            )
+
+            lines.append(
+                f"- Products: "
+                f"{lead['products'] or 'N/A'}"
+            )
+
+            lines.append(
+                f"- Why: "
+                f"{lead['lead_reason']}"
+            )
+
+            lines.append(
+                f"- Opportunity: "
+                f"{lead['sales_opportunity']}"
+            )
+
+            if lead["email"]:
+
+                lines.append(
+                    f"- Email: {lead['email']}"
+                )
+
+            if lead["phone"]:
+
+                lines.append(
+                    f"- Phone: {lead['phone']}"
+                )
+
+            if lead["website"]:
+
+                lines.append(
+                    f"- Website: {lead['website']}"
+                )
+
+            if lead["company_url"]:
+
+                lines.append(
+                    f"- Company profile: "
+                    f"{lead['company_url']}"
+                )
+
+            lines.append("")
+
+    # --------------------------------------------------------
+    # ALL LEADS TABLE
+    # --------------------------------------------------------
 
     lines.append(
         "## All Leads"
@@ -928,67 +1134,34 @@ def create_report(
 
     lines.append("")
 
+    lines.append(
+        "| # | Company | Country | Score | Priority | Lead type | Products |"
+    )
+
+    lines.append(
+        "|---:|---|---|---:|---|---|---:|"
+    )
+
     for index, lead in enumerate(
         leads,
         start=1
     ):
 
-        lines.append(
-            f"### {index}. {lead['company_name']}"
-        )
-
-        lines.append("")
+        products_count = lead[
+            "products_count"
+        ]
 
         lines.append(
-            f"- Country: {lead['country']}"
+            f"| {index} | "
+            f"{lead['company_name']} | "
+            f"{lead['country']} | "
+            f"{lead['score']} | "
+            f"{lead['priority']} | "
+            f"{lead['lead_type']} | "
+            f"{products_count} |"
         )
 
-        lines.append(
-            f"- Score: {lead['score']}"
-        )
-
-        lines.append(
-            f"- Priority: {lead['priority']}"
-        )
-
-        lines.append(
-            f"- Products: {lead['products'] or 'N/A'}"
-        )
-
-        lines.append(
-            f"- Why: {lead['lead_reason']}"
-        )
-
-        lines.append(
-            f"- Opportunity: {lead['sales_opportunity']}"
-        )
-
-        if lead["email"]:
-            lines.append(
-                f"- Email: {lead['email']}"
-            )
-
-        if lead["phone"]:
-            lines.append(
-                f"- Phone: {lead['phone']}"
-            )
-
-        if lead["website"]:
-            lines.append(
-                f"- Website: {lead['website']}"
-            )
-
-        if lead["company_url"]:
-            lines.append(
-                f"- Company profile: {lead['company_url']}"
-            )
-
-        if lead["europages_url"]:
-            lines.append(
-                f"- Europages offer: {lead['europages_url']}"
-            )
-
-        lines.append("")
+    lines.append("")
 
     return "\n".join(lines)
 
@@ -1006,7 +1179,7 @@ def main():
     )
 
     print(
-        "VERSION 3 - CONTACT & SALES INTELLIGENCE"
+        "VERSION 4 - SALES INTELLIGENCE"
     )
 
     print("=" * 70)
@@ -1062,7 +1235,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # SAVE
+    # SAVE LATEST
     # --------------------------------------------------------
 
     save_csv(
@@ -1095,7 +1268,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # HISTORY
+    # SAVE HISTORY
     # --------------------------------------------------------
 
     save_csv(

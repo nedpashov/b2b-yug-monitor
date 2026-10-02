@@ -9,52 +9,36 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
+        run: pip install -r requirements.txt
       - name: Run B2B monitor
-        run: |
-          python monitor.py
-
+        run: python monitor.py
       - name: Run B2B lead agent
-        run: |
-          python lead_agent.py
-
+        run: python lead_agent.py
+      - name: Run B2B trade agent
+        run: python trade_agent.py
       - name: Show generated files
-        run: |
-          echo "=============================="
-          echo "GENERATED FILES"
-          echo "=============================="
-          find data -type f | sort
-
+        run: find data -type f | sort
       - name: Commit monitoring results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add data/
-
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Update B2B monitoring and lead report"
+            git commit -m "Update B2B monitoring, leads and trade report"
             git push
           fi
-
       - name: Upload monitoring results as artifact
         uses: actions/upload-artifact@v4
         with:

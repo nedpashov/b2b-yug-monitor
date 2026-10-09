@@ -10,8 +10,7 @@ from datetime import datetime
 # VERSION 4 - SALES INTELLIGENCE
 # ============================================================
 
-INPUT_FILE = "data/latest/offers_ro_gr.csv"
-
+INPUT_FILE = "data/latest/offers_yug.csv"
 LATEST_LEADS = "data/latest/leads.csv"
 LATEST_REPORT = "data/latest/daily_report.md"
 

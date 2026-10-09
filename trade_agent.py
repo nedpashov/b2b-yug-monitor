@@ -10,7 +10,7 @@ from datetime import datetime
 # VERSION 1 - BUY / SELL OPPORTUNITY ANALYSIS
 # ============================================================
 
-INPUT_FILE = "data/latest/offers_ro_gr.csv"
+INPUT_FILE = "data/latest/offers_yug.csv"
 
 LATEST_TRADES = "data/latest/trade_opportunities.csv"
 LATEST_REPORT = "data/latest/trade_report.md"

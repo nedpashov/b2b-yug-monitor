@@ -458,6 +458,7 @@ def bootstrap_state_from_history(state, previous_date):
     return state
 
 
+
 def compare_and_update_state(current_offers, current_companies, state, today):
     result = {
         name: [] for name in (
@@ -465,6 +466,86 @@ def compare_and_update_state(current_offers, current_companies, state, today):
             "returned_offers", "pending_removed_offers",
             "new_companies", "changed_companies", "removed_companies",
             "returned_companies", "pending_removed_companies",
+        )
+    }
+
+    # Не броим повторно липсващи записи при повторно изпълнение
+    # на монитора в рамките на същия ден.
+    same_day_rerun = state.get("last_processed_date") == today
+
+    def process(current_rows, state_key, key_func, fields, prefix):
+        old_records = state[state_key]
+        current_map = {key_func(row): row for row in current_rows}
+
+        for key, row in current_map.items():
+            fp = fingerprint(row, fields)
+            old = old_records.get(key)
+
+            if old is None:
+                result["new_" + prefix].append(row)
+                first_seen = today
+                status = "active"
+            else:
+                first_seen = old.get("first_seen", today)
+                old_status = old.get("status", "active")
+
+                if old_status == "removed":
+                    result["returned_" + prefix].append(row)
+                elif old.get("fingerprint") != fp:
+                    result["changed_" + prefix].append(row)
+
+                status = "active"
+
+            old_records[key] = {
+                "record": row,
+                "fingerprint": fp,
+                "first_seen": first_seen,
+                "last_seen": today,
+                "missed_days": 0,
+                "status": status,
+            }
+
+        for key, old in list(old_records.items()):
+            if key in current_map:
+                continue
+
+            if old.get("last_seen") == today:
+                continue
+
+            record = old.get("record", {})
+
+            # При повторно изпълнение в същия ден не увеличаваме брояча.
+            if same_day_rerun:
+                if old.get("status", "active") != "removed":
+                    result["pending_removed_" + prefix].append(record)
+                continue
+
+            old["missed_days"] = int(old.get("missed_days", 0)) + 1
+
+            if old["missed_days"] >= REMOVAL_MISS_THRESHOLD:
+                if old.get("status") != "removed":
+                    result["removed_" + prefix].append(record)
+                old["status"] = "removed"
+            else:
+                result["pending_removed_" + prefix].append(record)
+
+    process(current_offers, "offers", offer_key, OFFER_FIELDS, "offers")
+
+    company_fields = [
+        field for field in COMPANY_FIELDS
+        if field != "products_count"
+    ]
+    process(
+        current_companies,
+        "companies",
+        company_key,
+        company_fields,
+        "companies",
+    )
+
+    state["last_processed_date"] = today
+    return result
+
         )
     }
 

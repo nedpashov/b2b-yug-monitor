@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-12",
+  "search": "packaging",
+  "target_countries": {
+    "RO": "Румъния",
+    "GR": "Гърция",
+    "RS": "Сърбия",
+    "MK": "Северна Македония",
+    "HR": "Хърватия",
+    "ME": "Черна гора"
+  },
+  "previous_snapshot": "2026-10-09",
+  "total_offers_reported_by_europages": 746,
+  "downloaded_offers": 510,
+  "filtered_offers": 11,
+  "unique_companies": 3,
+  "country_counts": {
+    "RO": 10,
+    "GR": 1,
+    "RS": 0,
+    "MK": 0,
+    "HR": 0,
+    "ME": 0
+  },
+  "new_offers": 0,
+  "changed_offers": 0,
+  "removed_offers": 0,
+  "returned_offers": 0,
+  "pending_removed_offers": 13,
+  "new_companies": 0,
+  "changed_companies": 0,
+  "removed_companies": 0,
+  "returned_companies": 0,
+  "pending_removed_companies": 4,
+  "removal_threshold_days": 3
+}

@@ -1,14 +1,14 @@
 # B2B YUG DAILY LEAD REPORT
 
-Date: 2026-10-13
-Offers analysed: 11
-Companies analysed: 4
+Date: 2026-10-15
+Offers analysed: 17
+Companies analysed: 5
 
 ## Lead Summary
 
 - HIGH: 0
 - MEDIUM: 0
-- LOW: 4
+- LOW: 5
 
 ## Top Leads
 
@@ -36,7 +36,19 @@ Companies analysed: 4
 - Email: True
 - Company profile: https://www.europages.co.uk/EXONIA-PACKAGING
 
-### 3. XENOS PACKAGING SA
+### 3. URSPACK
+
+- Country: Румъния
+- Score: 27
+- Priority: LOW
+- Lead type: General packaging
+- Products: Кутия за паста за вземане на хартия - Кутия за паста за вземане на хартия - 760cc/25,6 Oz | Меню кутия с интегриран разделител 53,5 Oz - Меню кутия с интегриран разделител - 1000cc/53,5 Oz MOQ - 5120 бр. | Кутии за Сладки и Торти | Хартиена купа за супа + 486cc/16.4 Oz - Хартиена купа за супа - 486cc / 16.4 Oz - Персонализирана, най-добра цена в Европа гарантирана | Сгъваема Кутия за Взимане 16,6 Oz - Кутия за Взимане B:100x100 T:110x110 H:45 Вместимост- 493cc/16,6 Oz- Персонализируема
+- Why: 5 distinct product/offering(s); email available in source data
+- Opportunity: Potential B2B opportunity related to packaging products or services.
+- Email: True
+- Company profile: https://www.europages.co.uk/URSPACK
+
+### 4. XENOS PACKAGING SA
 
 - Country: Гърция
 - Score: 12
@@ -48,7 +60,7 @@ Companies analysed: 4
 - Email: True
 - Company profile: https://www.europages.co.uk/XENOS-PACKAGING-SA
 
-### 4. SPECIAL MIX
+### 5. SPECIAL MIX
 
 - Country: Гърция
 - Score: 12
@@ -66,5 +78,6 @@ Companies analysed: 4
 |---:|---|---|---:|---|---|---:|
 | 1 | ARPA INCORPORATED COMPANY | Гърция | 42 | LOW | Plastic / flexible packaging | 4 |
 | 2 | EXONIA PACKAGING | Румъния | 35 | LOW | General packaging | 5 |
-| 3 | XENOS PACKAGING SA | Гърция | 12 | LOW | General packaging | 1 |
-| 4 | SPECIAL MIX | Гърция | 12 | LOW | General packaging | 1 |
+| 3 | URSPACK | Румъния | 27 | LOW | General packaging | 5 |
+| 4 | XENOS PACKAGING SA | Гърция | 12 | LOW | General packaging | 1 |
+| 5 | SPECIAL MIX | Гърция | 12 | LOW | General packaging | 1 |
